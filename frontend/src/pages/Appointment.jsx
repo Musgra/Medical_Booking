@@ -3,6 +3,9 @@ import RelatedDoctors from "../components/RelatedDoctors";
 import { useParams, useNavigate } from "react-router-dom";
 import { AppContext } from "../context/AppContext";
 import { assets } from "../assets/assets";
+import DatePicker from "react-datepicker";
+import moment from "moment";
+import "react-datepicker/dist/react-datepicker.css";
 import axios from "axios";
 import { toast } from "react-toastify";
 import Modal from "react-modal";
@@ -34,11 +37,17 @@ const Appointment = () => {
   const [modalIsOpen, setModalIsOpen] = useState(false);
   const [reviews, setReviews] = useState([]);
   const [name, setName] = useState("");
+  const [nameError, setNameError] = useState("");
   const [phone, setPhone] = useState("");
+  const [phoneError, setPhoneError] = useState("");
   const [address, setAddress] = useState("");
+  const [addressError, setAddressError] = useState("");
+
   const [dob, setDob] = useState("");
   const [gender, setGender] = useState("");
   const [reason, setReason] = useState("");
+  const [reasonError, setReasonError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (docInfo) {
@@ -67,7 +76,6 @@ const Appointment = () => {
         toast.error("Failed to fetch doctors list");
       }
     } catch (error) {
-      console.log(error);
       toast.error("Failed to fetch doctor info");
     }
   };
@@ -93,7 +101,7 @@ const Appointment = () => {
       const day = date.getDate();
       const month = date.getMonth() + 1;
       const year = date.getFullYear();
-      const bookedSlotDate = `${day}_${month}_${year}`;
+      const bookedSlotDate = `${day}/${month}/${year}`;
       return (
         docInfo.slots_booked[bookedSlotDate] &&
         docInfo.slots_booked[bookedSlotDate].includes(time)
@@ -147,12 +155,14 @@ const Appointment = () => {
       return navigate("/login");
     }
 
+    setLoading(true);
+
     try {
       const date = docSlots[slotIndex][0].datetime;
       let day = date.getDate();
       let month = date.getMonth() + 1;
       let year = date.getFullYear();
-      const slotDate = `${day}_${month}_${year}`;
+      const slotDate = `${day}/${month}/${year}`;
 
       const formData = new FormData();
       formData.append("docId", docId);
@@ -187,8 +197,6 @@ const Appointment = () => {
 
       if (data.success) {
         toast.success(data.message);
-        console.log(formData, "formData");
-        console.log(data, "data");
         getDoctorsData();
         navigate("/my-appointments");
       } else {
@@ -196,6 +204,8 @@ const Appointment = () => {
       }
     } catch (error) {
       toast.error(error.response.data.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -211,6 +221,12 @@ const Appointment = () => {
     event.preventDefault();
 
     const form = event.target.closest("form");
+
+    if (phone.length !== 10) {
+      setPhoneError("Phone number must be exactly 10 characters long");
+      toast.warn("Phone number must be exactly 10 characters long");
+      return;
+    }
     if (!form.checkValidity()) {
       form.reportValidity(); // Hiển thị thông báo lỗi cho các trường không hợp lệ
       return;
@@ -302,14 +318,20 @@ const Appointment = () => {
               <p className="flex items-center gap-1 text-sm font-medium text-gray-900 mt-3">
                 About <img src={assets.info_icon} alt="" />
               </p>
-              <p className="text-sm text-gray-500 max-w-[700px] mt-1">
+              <p className="text-sm text-gray-700 font-medium max-w-[700px] mt-1">
                 {docInfo?.about}
+              </p>
+              <p className="flex items-center gap-1 text-sm font-medium text-gray-900 mt-3">
+                Phone Number
+              </p>
+              <p className="text-sm text-gray-700 font-medium mt-1">
+                {docInfo?.phone}
               </p>
               <div className="address-section mt-4">
                 <p className="text-sm font-medium text-gray-900">Address</p>
                 <ul className="space-y-2 mt-2">
-                  {docInfo?.address.line1 && (
-                    <li className="flex items-center text-gray-700 text-sm">
+                  {docInfo?.address && (
+                    <li className="flex items-center font-medium text-gray-700 text-sm">
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
                         fill="none"
@@ -329,31 +351,7 @@ const Appointment = () => {
                           d="M19.5 11.25c0 7.5-7.5 9.75-7.5 9.75s-7.5-2.25-7.5-9.75a7.5 7.5 0 1115 0z"
                         />
                       </svg>
-                      {docInfo?.address.line1}
-                    </li>
-                  )}
-                  {docInfo?.address.line2 && (
-                    <li className="flex items-center text-gray-700 text-sm">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        strokeWidth={1.5}
-                        stroke="currentColor"
-                        className="w-4 h-4 mr-2 text-blue-500"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M15.75 11.25a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"
-                        />
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M19.5 11.25c0 7.5-7.5 9.75-7.5 9.75s-7.5-2.25-7.5-9.75a7.5 7.5 0 1115 0z"
-                        />
-                      </svg>
-                      {docInfo?.address.line2}
+                      {docInfo?.address}
                     </li>
                   )}
                 </ul>
@@ -410,8 +408,9 @@ const Appointment = () => {
           <button
             onClick={openModal}
             className="bg-primary text-white text-sm font-light px-14 py-3 rounded-full my-6"
+            disabled={loading}
           >
-            Book Appointment
+            {loading ? "Loading..." : "Book Appointment"}
           </button>
 
           <Modal
@@ -458,21 +457,50 @@ const Appointment = () => {
                       type="text"
                       name="name"
                       value={name}
-                      onChange={(e) => setName(e.target.value)}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setName(value);
+
+                        if (value.length >= 30) {
+                          setNameError("Max name length is 30 characters");
+                        } else {
+                          setNameError("");
+                        }
+                      }}
                       className="form-control"
+                      maxLength={30}
                       required
                     />
+                    {nameError && <p className="error-message">{nameError}</p>}
                   </div>
+
                   <div className="form-group">
                     <label>Patient's Phone</label>
                     <input
-                      type="text"
+                      type="tel"
                       name="phone"
                       value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (/^\d*$/.test(value)) {
+                          setPhone(value);
+                          if (value.length !== 10) {
+                            setPhoneError(
+                              "Phone number must be exactly 10 characters long"
+                            );
+                          } else {
+                            setPhoneError("");
+                          }
+                        }
+                      }}
                       className="form-control"
                       required
+                      maxLength={10}
+                      inputMode="numeric"
                     />
+                    {phoneError && (
+                      <p className="error-message">{phoneError}</p>
+                    )}
                   </div>
                 </div>
 
@@ -492,11 +520,25 @@ const Appointment = () => {
                     <input
                       type="text"
                       name="address"
-                      onChange={(e) => setAddress(e.target.value)}
                       value={address}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setAddress(value);
+                        if (value.length >= 100) {
+                          setAddressError(
+                            "Max address length is 100 characters"
+                          );
+                        } else {
+                          setAddressError("");
+                        }
+                      }}
                       className="form-control"
                       required
+                      maxLength={100}
                     />
+                    {addressError && (
+                      <p className="error-message">{addressError}</p>
+                    )}
                   </div>
                 </div>
 
@@ -507,23 +549,41 @@ const Appointment = () => {
                       type="text"
                       name="reason"
                       value={reason}
-                      onChange={(e) => setReason(e.target.value)}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setReason(value);
+                        if (value.length >= 100) {
+                          setReasonError("Max reason length is 100 characters");
+                        } else {
+                          setReasonError("");
+                        }
+                      }}
                       className="form-control"
                       required
+                      maxLength={100}
                     />
+                    {reasonError && (
+                      <p className="error-message">{reasonError}</p>
+                    )}
                   </div>
                 </div>
 
                 <div className="form-row">
                   <div className="form-group">
                     <label>Patient's Date of Birth</label>
-                    <input
-                      type="date"
-                      name="dob"
-                      value={dob}
-                      onChange={(e) => setDob(e.target.value)}
+                    <DatePicker
+                      selected={dob ? moment(dob, "YYYY-MM-DD").toDate() : null}
+                      onChange={(date) =>
+                        setDob(date ? moment(date).format("YYYY-MM-DD") : "")
+                      }
+                      dateFormat="dd/MM/yyyy"
                       className="form-control"
-                      max={new Date().toISOString().split("T")[0]}
+                      maxDate={new Date()}
+                      showMonthDropdown
+                      showYearDropdown
+                      yearDropdownItemNumber={120}
+                      scrollableYearDropdown
+                      isClearable
                       required
                     />
                   </div>

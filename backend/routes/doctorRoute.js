@@ -14,7 +14,13 @@ import {
   changeDoctorPassword,
   getPatientList,
   getPatientDetails,
+  
 } from "../controllers/doctorController.js";
+import {
+  getNotifications,
+  markAllAsRead,
+  markAsRead,
+} from "../controllers/notificationController.js";
 import upload from "../middlewares/multer.js";
 import authDoctor from "../middlewares/authDoctor.js";
 import reviewRouter from "./reviewRoute.js";
@@ -31,7 +37,12 @@ doctorRouter.post("/cancel-appointment", authDoctor, appointmentCancel);
 doctorRouter.post("/accept-appointment", authDoctor, appointmentAccept);
 doctorRouter.get("/dashboard", authDoctor, doctorDashboard);
 doctorRouter.get("/profile", authDoctor, doctorProfile);
-doctorRouter.post("/update-profile", authDoctor, updateDoctorProfile);
+doctorRouter.put(
+  "/update-profile",
+  authDoctor,
+  upload.single("image"),
+  updateDoctorProfile
+);
 doctorRouter.post(
   "/send-remedy",
   authDoctor,
@@ -42,5 +53,8 @@ doctorRouter.get("/view-remedy", authDoctor, viewRemedy);
 doctorRouter.post("/change-password", authDoctor, changeDoctorPassword);
 doctorRouter.get("/patients", authDoctor, getPatientList);
 doctorRouter.get("/patient/:userId", authDoctor, getPatientDetails);
+doctorRouter.get("/notifications", authDoctor, getNotifications);
+doctorRouter.put("/notifications/:notificationId/markAsRead", authDoctor, markAsRead);
+doctorRouter.post("/mark-all-as-read", authDoctor, markAllAsRead);
 
 export default doctorRouter;

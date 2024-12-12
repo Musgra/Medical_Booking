@@ -8,8 +8,9 @@ import userModel from "../models/userModel.js";
 import reviewModel from "../models/reviewModel.js";
 import mongoose from "mongoose";
 import sharp from "sharp";
-import fs from "fs";
+import fs from "fs/promises";
 import streamifier from "streamifier";
+import path from "path";
 
 //API for adding a doctor
 const addDoctor = async (req, res) => {
@@ -24,6 +25,7 @@ const addDoctor = async (req, res) => {
       about,
       fees,
       address,
+      phone,
     } = req.body;
     const imageFile = req.file;
 
@@ -37,7 +39,8 @@ const addDoctor = async (req, res) => {
       !experience ||
       !about ||
       !fees ||
-      !address
+      !address ||
+      !phone
     ) {
       return res.json({ success: false, message: "All fields are required" });
     }
@@ -62,28 +65,28 @@ const addDoctor = async (req, res) => {
     let imageUrl;
     if (imageFile) {
       // Thay đổi kích thước ảnh và chuyển đổi thành buffer
-      const resizedImageBuffer = await sharp(imageFile.path)
-        .resize(342, 342) // Thay đổi kích thước ảnh
+      const filePath = path.resolve(imageFile.path); // Xác định đường dẫn file
+      const imageBuffer = await fs.readFile(filePath);
+
+      // Resize ảnh với sharp
+      const resizedImageBuffer = await sharp(imageBuffer)
+        .resize(342, 342) // Resize ảnh về kích thước 342x342
         .toBuffer();
 
-      // Tải lên Cloudinary từ buffer
-      const uploadFromBuffer = () => {
-        return new Promise((resolve, reject) => {
-          const uploadStream = cloudinary.uploader.upload_stream(
-            { resource_type: "image" },
-            (error, result) => {
-              if (error) {
-                reject(error);
-              } else {
-                resolve(result.secure_url);
-              }
-            }
-          );
-          streamifier.createReadStream(resizedImageBuffer).pipe(uploadStream);
-        });
-      };
+      // Upload ảnh lên Cloudinary qua stream
+      imageUrl = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { resource_type: "image" },
+          (error, result) => {
+            if (error) return reject(error);
+            resolve(result.secure_url);
+          }
+        );
+        stream.end(resizedImageBuffer); // Đưa buffer vào stream
+      });
 
-      imageUrl = await uploadFromBuffer();
+      // Xóa file ảnh sau khi xử lý xong
+      await fs.unlink(filePath);
     }
 
     const doctorData = {
@@ -96,7 +99,8 @@ const addDoctor = async (req, res) => {
       experience,
       about,
       fees,
-      address: JSON.parse(address),
+      address,
+      phone,
       date: Date.now(),
     };
 
@@ -104,7 +108,6 @@ const addDoctor = async (req, res) => {
     await newDoctor.save();
     res.json({ success: true, message: "Doctor added successfully" });
   } catch (error) {
-    console.log(error);
     res.json({ success: false, message: error.message });
   }
 };
@@ -125,7 +128,6 @@ const adminLogin = async (req, res) => {
       res.status(401).json({ success: false, message: "Invalid credentials" });
     }
   } catch (error) {
-    console.log(error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -134,12 +136,37 @@ const adminLogin = async (req, res) => {
 
 const allDoctors = async (req, res) => {
   try {
-    const doctors = await doctorModel.find({}).select("-password");
+    const doctors = await doctorModel.find({});
 
     res.json({ success: true, doctors });
   } catch (error) {
-    console.log(error);
     res.json({ success: false, message: error.message });
+  }
+};
+
+const blockUser = async (req, res) => {
+  try {
+    const { userId } = req.body;
+    const { isBlocked } = req.body;
+    const user = await userModel.findById(userId);
+    if (!userId) {
+      return res.json({ success: false, message: "User is not found" });
+    }
+
+    user.isBlocked = isBlocked;
+    await user.save();
+
+    await appointmentModel.updateMany(
+      { userId },
+      { $set: { "userData.isBlocked": isBlocked } }
+    );
+
+    return res.json({
+      success: true,
+      message: isBlocked ? "User has been blocked" : "User has been unblocked",
+    });
+  } catch (error) {
+    return res.json({ success: false, message: error.message });
   }
 };
 
@@ -147,10 +174,9 @@ const allDoctors = async (req, res) => {
 
 const appointmentsAdmin = async (req, res) => {
   try {
-    const appointments = await appointmentModel.find({});
+    const appointments = await appointmentModel.find({}).populate("userId");
     res.json({ success: true, appointments });
   } catch (error) {
-    console.log(error);
     res.json({ success: false, message: error.message });
   }
 };
@@ -159,7 +185,6 @@ const appointmentsAdmin = async (req, res) => {
 const cancelAppointmentByAdmin = async (req, res) => {
   try {
     const { appointmentId } = req.body;
-    console.log(appointmentId);
 
     const appointmentData = await appointmentModel.findById(appointmentId);
 
@@ -186,7 +211,6 @@ const cancelAppointmentByAdmin = async (req, res) => {
       message: "Appointment Cancelled",
     });
   } catch (error) {
-    console.log(error);
     return res.json({ success: false, message: error.message });
   }
 };
@@ -214,7 +238,6 @@ const adminDashboard = async (req, res) => {
 
     res.json({ success: true, dashboardData });
   } catch (error) {
-    console.log(error);
     return res.json({ success: false, message: error.message });
   }
 };
@@ -222,20 +245,49 @@ const adminDashboard = async (req, res) => {
 // API to get all users list for admin panel
 const allPatients = async (req, res) => {
   try {
+    // Lấy danh sách tất cả bệnh nhân (trừ mật khẩu)
     const patients = await userModel.find({}).select("-password");
-    // get number of appointments for each patient
-    const patientsWithAppointments = await Promise.all(
-      patients.map(async (patient) => {
-        const appointments = await appointmentModel.find({
-          userId: patient._id,
-          cancelled: false, // Exclude canceled appointments
-        });
-        return { ...patient, appointmentCount: appointments.length };
-      })
-    );
-    res.json({ success: true, patients: patientsWithAppointments });
+
+    // Sử dụng aggregation pipeline để thống kê số lượng cuộc hẹn
+    const appointmentsStats = await appointmentModel.aggregate([
+      {
+        $group: {
+          _id: "$userId", // Nhóm theo userId (bệnh nhân)
+          totalAppointments: { $sum: 1 }, // Tổng số cuộc hẹn
+          completedAppointments: {
+            $sum: { $cond: ["$isCompleted", 1, 0] },
+          }, // Số cuộc hẹn đã hoàn thành
+          cancelledAppointments: {
+            $sum: { $cond: ["$cancelled", 1, 0] },
+          }, // Số cuộc hẹn bị hủy
+        },
+      },
+    ]);
+
+    // Chuyển danh sách thống kê thành object để dễ dàng truy cập
+    const statsMap = appointmentsStats.reduce((acc, stat) => {
+      acc[stat._id.toString()] = stat;
+      return acc;
+    }, {});
+
+    // Kết hợp thông tin bệnh nhân với thống kê
+    const patientsWithStats = patients.map((patient) => {
+      const stats = statsMap[patient._id.toString()] || {
+        totalAppointments: 0,
+        completedAppointments: 0,
+        cancelledAppointments: 0,
+      };
+
+      return {
+        ...patient.toObject(),
+        totalAppointments: stats.totalAppointments,
+        completedAppointments: stats.completedAppointments,
+        cancelledAppointments: stats.cancelledAppointments,
+      };
+    });
+
+    res.json({ success: true, patients: patientsWithStats });
   } catch (error) {
-    console.log(error);
     res.json({ success: false, message: error.message });
   }
 };
@@ -245,18 +297,17 @@ const deleteDoctor = async (req, res) => {
   try {
     const { docId } = req.body;
 
-    // Delete the doctor
     await doctorModel.findByIdAndDelete(docId);
 
     // Delete all appointments related to the doctor
     await appointmentModel.deleteMany({ docId });
+    await reviewModel.deleteMany({ docId });
 
     res.json({
       success: true,
       message: "Doctor and related appointments deleted successfully",
     });
   } catch (error) {
-    console.log(error);
     res.json({ success: false, message: error.message });
   }
 };
@@ -270,7 +321,22 @@ const getDoctorProfile = async (req, res) => {
       .select("-password");
     res.json({ success: true, doctorProfileData });
   } catch (error) {
-    console.log(error);
+    res.json({ success: false, message: error.message });
+  }
+};
+
+const getPatientProfile = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const patients = await userModel.findById(id).select("-password");
+    const appointments = await appointmentModel.find({ userId: id });
+
+    if (!patients) {
+      return res.json({ success: false, message: "User not found" });
+    }
+
+    res.json({ success: true, patients, appointments });
+  } catch (error) {
     res.json({ success: false, message: error.message });
   }
 };
@@ -284,15 +350,22 @@ const adminUpdateDoctorProfile = async (req, res) => {
     }
 
     const {
-      fees,
-      address,
-      available,
       name,
-      degree,
+      email,
+      password,
       specialty,
+      degree,
       experience,
       about,
+      fees,
+      address,
+      phone,
+      available,
     } = req.body;
+
+    if (email && !validator.isEmail(email)) {
+      return res.json({ success: false, message: "Invalid email format" });
+    }
     const imageFile = req.file;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -301,28 +374,53 @@ const adminUpdateDoctorProfile = async (req, res) => {
 
     let imageUrl;
     if (imageFile) {
-      // Thay đổi kích thước ảnh trước khi upload
-      const resizedImageBuffer = await sharp(imageFile.path)
-        .resize(300, 300) // Thay đổi kích thước theo chiều rộng và chiều cao
+      const filePath = path.resolve(imageFile.path); // Xác định đường dẫn file
+      const imageBuffer = await fs.readFile(filePath);
+
+      // Resize ảnh với sharp
+      const resizedImageBuffer = await sharp(imageBuffer)
+        .resize(342, 342) // Resize ảnh về kích thước 300x300
         .toBuffer();
 
-      // Upload image to cloudinary
-      const imageUpload = await cloudinary.uploader.upload(resizedImageBuffer, {
-        resource_type: "image",
+      // Upload ảnh lên Cloudinary qua stream
+      imageUrl = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { resource_type: "image" },
+          (error, result) => {
+            if (error) return reject(error);
+            resolve(result.secure_url);
+          }
+        );
+        stream.end(resizedImageBuffer); // Đưa buffer vào stream
       });
-      imageUrl = imageUpload.secure_url;
+
+      // Xóa file ảnh sau khi xử lý xong
+      await fs.unlink(filePath);
     }
 
     const updateData = {
       name,
+      email,
       fees,
-      address: JSON.parse(address),
+      address,
       available,
       degree,
       specialty,
       experience,
       about,
+      phone,
     };
+
+    if (password) {
+      if (password.length < 8) {
+        return res.json({
+          success: false,
+          message: "Password must be at least 8 characters",
+        });
+      }
+      const salt = await bcrypt.genSalt(10);
+      updateData.password = await bcrypt.hash(password, salt);
+    }
 
     if (imageUrl) {
       updateData.image = imageUrl;
@@ -345,6 +443,7 @@ const adminUpdateDoctorProfile = async (req, res) => {
           "docData.fees": updatedDoctor.fees,
           "docData.address": updatedDoctor.address,
           "docData.available": updatedDoctor.available,
+          "docData.phone": updatedDoctor.phone,
         },
       }
     );
@@ -370,8 +469,40 @@ const adminUpdateDoctorProfile = async (req, res) => {
       updatedDoctor,
     });
   } catch (error) {
-    console.log(error);
     res.json({ success: false, message: error.message });
+  }
+};
+
+const resetDoctorPassword = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { password } = req.body;
+
+    if (!password || password.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: "Password must be at least 8 characters",
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const updatedDoctor = await doctorModel.findByIdAndUpdate(
+      id,
+      { password: hashedPassword },
+      { new: true }
+    );
+
+    if (!updatedDoctor) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Doctor not found" });
+    }
+
+    res.json({ success: true, message: "Password reset successfully" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
@@ -386,4 +517,7 @@ export {
   deleteDoctor,
   getDoctorProfile,
   adminUpdateDoctorProfile,
+  resetDoctorPassword,
+  getPatientProfile,
+  blockUser,
 };

@@ -13,7 +13,7 @@ const DoctorDashboard = () => {
     cancelAppointment,
   } = useContext(DoctorContext);
 
-  const { currency, slotDateFormat } = useContext(AppContext);
+  const { currency } = useContext(AppContext);
 
   useEffect(() => {
     if (dToken) {
@@ -87,9 +87,7 @@ const DoctorDashboard = () => {
                     {item.userData.name}
                   </p>
                   <div className="flex flex-col sm:flex-row sm:items-center">
-                    <p className="text-gray-800">
-                      {slotDateFormat(item.slotDate)}
-                    </p>
+                    <p className="text-gray-800">{item.slotDate}</p>
                     <p className="text-gray-800 sm:ml-2">{item.slotTime}</p>
                   </div>
                 </div>

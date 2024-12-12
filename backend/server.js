@@ -19,7 +19,7 @@ const port = process.env.PORT || 4000;
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "*", // Hoặc cụ thể nguồn frontend của bạn
+    origin: "*",
     methods: ["GET", "POST"],
   },
   pingInterval: 25000, // Khoảng thời gian gửi ping

@@ -13,10 +13,8 @@ const getAllReviews = async (req, res) => {
       .populate("doctor")
       .populate("appointment")
       .select("-password");
-    console.log("Fetched reviews:", reviews);
     res.json({ success: true, reviews });
   } catch (error) {
-    console.log(error);
     res.json({ success: false, message: error.message });
   }
 };
@@ -32,6 +30,7 @@ const createReview = async (req, res) => {
 
   // Check if the user has a completed appointment with the doctor
   const appointment = await appointmentModel.findOne({
+    _id: req.body.appointmentId,
     docId: req.body.docId,
     userId: req.body.userId,
     isCompleted: true,
@@ -53,7 +52,6 @@ const createReview = async (req, res) => {
 
   // Convert slotDate to a Date object using the custom parser
   const appointmentDate = parseCustomDate(appointment.slotDate);
-  console.log(appointmentDate, "appointmentDate");
 
   if (appointmentDate < thirtyDaysAgo) {
     return res.status(400).json({
@@ -104,7 +102,6 @@ const getReview = async (req, res) => {
 
     res.json({ success: true, review });
   } catch (error) {
-    console.log(error);
     res.json({ success: false, message: error.message });
   }
 };
@@ -137,9 +134,6 @@ const editReview = async (req, res) => {
 const deleteReview = async (req, res) => {
   try {
     const { _id, ownerId, userId } = req.body;
-    console.log(_id, "id");
-    console.log(userId, "userId");
-    console.log(ownerId, "ownerId");
 
     if (!_id) {
       return res
@@ -176,13 +170,12 @@ const getAllReviewsForAdmin = async (req, res) => {
   try {
     const reviews = await reviewModel
       .find({})
-      .populate("userId", "name email image")
+      .populate("userId", "name email image isBlocked")
       .populate("docId", "name specialty image")
       .populate("appointmentId", "slotDate slotTime");
 
     res.json({ success: true, reviews });
   } catch (error) {
-    console.log(error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -207,14 +200,13 @@ const deleteReviewForAdmin = async (req, res) => {
 
     res.json({ success: true, message: "Review deleted successfully" });
   } catch (error) {
-    console.log(error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
 // Function to convert "dd_mm_yyyy" to a Date object
 function parseCustomDate(dateString) {
-  const [day, month, year] = dateString.split("_").map(Number);
+  const [day, month, year] = dateString.split("/").map(Number);
   return new Date(year, month - 1, day); // month is 0-indexed
 }
 

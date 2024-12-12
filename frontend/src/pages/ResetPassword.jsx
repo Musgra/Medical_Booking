@@ -63,7 +63,6 @@ const ResetPassword = () => {
         toast.error(data.message);
       }
     } catch (error) {
-      console.log(error);
       if (error.response && error.response.status === 400) {
         setTokenError(true);
       } else {

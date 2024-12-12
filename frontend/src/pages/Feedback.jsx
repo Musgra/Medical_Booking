@@ -23,8 +23,7 @@ const Feedback = ({
   const [showFeedbackForm, setShowFeedbackForm] = useState(false);
   const [loading, setLoading] = useState(false);
   const { docId } = useParams();
-  const { backendUrl, token, userData, slotDateFormat } =
-    useContext(AppContext);
+  const { backendUrl, token, userData } = useContext(AppContext);
   const [isEditReview, setIsEditReview] = useState(false);
   const [editReviewId, setEditReviewId] = useState(null);
   const [editReviewText, setEditReviewText] = useState("");
@@ -185,7 +184,7 @@ const Feedback = ({
                 <div>
                   <h5 className="text-[16px] leading-6 text-primaryColor font-bold">
                     {review?.userId?.name || "Anonymous"} - Completed on{" "}
-                    {slotDateFormat(review?.appointmentId?.slotDate || "")}
+                    {review?.appointmentId?.slotDate || ""}
                   </h5>
                   <p className="text-[14px] leading-6 text-grayColor">
                     {formatDate(review?.createdAt) || "Unknown date"}

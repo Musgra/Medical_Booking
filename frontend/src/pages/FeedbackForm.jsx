@@ -28,7 +28,6 @@ const FeedbackForm = ({
   const handleSubmitReview = async (e) => {
     e.preventDefault();
     setLoading(true);
-    console.log(appointmentId);
 
     try {
       if (!rating || !reviewText) {
@@ -65,7 +64,6 @@ const FeedbackForm = ({
       }
     } catch (error) {
       setLoading(false);
-      console.log(error);
       toast.error(error.response.data.message);
     }
   };

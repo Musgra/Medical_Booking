@@ -1,14 +1,108 @@
-import React, { useContext } from "react";
+import React, { useContext, useEffect, useState, useRef } from "react";
 import { assets } from "../assets/assets";
 import { NavLink, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import axios from "axios";
+import { toast } from "react-toastify";
+import { io } from "socket.io-client";
+import { jwtDecode } from "jwt-decode";
+
 import { AppContext } from "../context/AppContext";
 
 const NavBar = () => {
+  const socket = io("http://localhost:4000");
   const navigate = useNavigate();
+  const dropdownRef = useRef(null);
+  const menuRef = useRef(null);
 
-  const { token, setToken, userData } = useContext(AppContext);
+  const formatNotificationType = (type) => {
+    return type
+      .split("_")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
+  };
+
+  const {
+    token,
+    setToken,
+    userData,
+    patientNotifications,
+    notifications,
+    setNotifications,
+    markAllAsRead,
+    backendUrl,
+  } = useContext(AppContext);
+  const [showDropdown, setShowDropdown] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const unreadCount = notifications.filter(
+    (notification) => !notification.isRead
+  ).length;
+
+  useEffect(() => {
+    if (token) {
+      const decodedToken = jwtDecode(token);
+      const userId = decodedToken.id;
+      socket.emit("joinUserRoom", userId);
+      socket.on("newNotification", () => {
+        patientNotifications();
+        console.log("12345");
+      });
+      return () => {
+        socket.off("newNotification");
+      };
+    }
+  }, [token]);
+  useEffect(() => {
+    if (token) {
+      patientNotifications();
+    }
+  }, [token]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target) &&
+        menuRef.current &&
+        !menuRef.current.contains(event.target)
+      ) {
+        setShowDropdown(false);
+        setShowMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  const typeActions = {
+    appointment_accepted: "accepted appointment",
+    appointment_cancelled_by_doctor: "cancelled appointment",
+    appointment_completed: "completed appointment",
+  };
+
+  const handleNotificationClick = async (notification) => {
+    try {
+      const { data } = await axios.put(
+        backendUrl + `/api/user/notifications/${notification._id}/markAsRead`,
+        {},
+        {
+          headers: {
+            token,
+          },
+        }
+      );
+      if (data.success) {
+        const updatedNotifications = notifications.map((n) =>
+          n._id === notification._id ? { ...n, isRead: true } : n
+        );
+        setNotifications(updatedNotifications);
+        navigate("/my-appointments");
+      }
+    } catch (error) {
+      toast.error(error.response.data.message);
+    }
+  };
 
   const logout = () => {
     setToken(false);
@@ -43,31 +137,134 @@ const NavBar = () => {
         </NavLink>
       </ul>
 
-      <div className="flex items-center gap-4 ">
+      <div className="flex items-center gap-6">
         {token && userData ? (
-          <div className="flex items-center gap-2 cursor-pointer group relative">
-            <img className="w-8 rounded-full" src={userData.image} alt="" />
-            <img className="w-2.5" src={assets.dropdown_icon} alt="" />
-            <div className="absolute top-0 right-0 pt-14 text-base font-medium text-gray-600 z-20 hidden group-hover:block">
-              <div className="min-w-48 bg-stone-100 rounded flex flex-col gap-4 p-4">
-                <p
-                  onClick={() => navigate("my-profile")}
-                  className="hover:text-black cursor-pointer"
-                >
-                  My Profile
-                </p>
-                <p
-                  onClick={() => navigate("my-appointments")}
-                  className="hover:text-black cursor-pointer"
-                >
-                  My Appointments
-                </p>
-                <p onClick={logout} className="hover:text-black cursor-pointer">
-                  Logout
-                </p>
+          <>
+            <div ref={dropdownRef} className="relative z-50">
+              <div
+                className="notification-bell cursor-pointer"
+                onClick={() => setShowDropdown(!showDropdown)}
+              >
+                <img src={assets.bell_icon} alt="Notifications" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                    {unreadCount}
+                  </span>
+                )}
+                {notifications.length > 0 && (
+                  <div
+                    className={`notification-dropdown ${
+                      showDropdown ? "block" : "hidden"
+                    }`}
+                  >
+                    <div className="notification-header">
+                      Notifications
+                      <button
+                        className="mark-all-read"
+                        onClick={() => {
+                          markAllAsRead();
+                        }}
+                      >
+                        Mark all as read
+                      </button>
+                    </div>{" "}
+                    <div className="notification-list">
+                      {notifications.map((notification, index) => (
+                        <div
+                          key={notification._id}
+                          className={`notification-item ${
+                            notification.isRead ? "bg-gray-200" : "bg-white"
+                          } hover:bg-gray-300 cursor-pointer transition-colors duration-300`}
+                          onClick={() => handleNotificationClick(notification)}
+                        >
+                          <div className="notification-text">
+                            <p>
+                              <strong>
+                                {" "}
+                                {formatNotificationType(notification.type)}{" "}
+                              </strong>
+                            </p>
+                            <p>
+                              <strong>
+                                {notification.message.split(" has")[0]}
+                              </strong>{" "}
+                              has{" "}
+                              <span
+                                className={`notification-action ${
+                                  notification.type ===
+                                  "appointment_cancelled_by_doctor"
+                                    ? "text-red-500"
+                                    : notification.type ===
+                                      "appointment_accepted"
+                                    ? "text-green-500"
+                                    : notification.type ===
+                                      "appointment_completed"
+                                    ? "text-blue-500"
+                                    : "text-gray-500"
+                                }`}
+                              >
+                                {typeActions[notification.type]}
+                              </span>{" "}
+                              at {notification.message.split(" at ")[1]}
+                            </p>
+                          </div>
+                          <div className="notification-time">
+                            {new Date(notification.createdAt).toLocaleString(
+                              "en-GB",
+                              {
+                                year: "numeric",
+                                month: "numeric",
+                                day: "numeric",
+                              }
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-          </div>
+            <div
+              ref={menuRef}
+              className="flex items-center gap-2 cursor-pointer group relative"
+            >
+              <img
+                className="w-8 rounded-full"
+                src={userData.image}
+                onClick={() => setShowMenu(!showMenu)}
+                alt=""
+              />
+              <img
+                className="w-2.5"
+                src={assets.dropdown_icon}
+                onClick={() => setShowMenu(!showMenu)}
+                alt=""
+              />
+              <div className="absolute top-0 right-0 pt-14 text-base font-medium text-gray-600 z-30 hidden group-hover:block">
+                <div className="min-w-48 bg-stone-100 rounded flex flex-col gap-4 p-4">
+                  <p
+                    onClick={() => navigate("my-profile")}
+                    className="hover:text-black cursor-pointer"
+                  >
+                    My Profile
+                  </p>
+                  <p
+                    onClick={() => navigate("my-appointments")}
+                    className="hover:text-black cursor-pointer"
+                  >
+                    My Appointments
+                  </p>
+                  <p
+                    onClick={logout}
+                    className="hover:text-black cursor-pointer"
+                  >
+                    Logout
+                  </p>
+                </div>
+              </div>
+            </div>
+          </>
         ) : (
           <button
             onClick={() => navigate("/login")}

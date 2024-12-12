@@ -22,7 +22,6 @@ const DoctorPatientList = () => {
           toast.error(data.message);
         }
       } catch (error) {
-        console.log(error);
         toast.error(error.message);
       }
     };
@@ -37,7 +36,7 @@ const DoctorPatientList = () => {
   return (
     <div className="w-full m-5">
       <div>
-        <p className="text-lg font-medium mb-3">All Patients</p>
+        <p className="text-lg font-medium mb-3">All Users</p>
         <div className="flex mb-4 items-center">
           <input
             type="text"
@@ -71,7 +70,7 @@ const DoctorPatientList = () => {
           <Link to={`/doctor-patient/${patient._id}`} key={index}>
             <div
               className="flex flex-wrap justify-between max-sm:gap-2 sm:grid sm:grid-cols-[0.5fr_3fr_2fr_3fr_2fr_2fr] 
-              items-center text-gray-500 py-3 px-6 border-b hover:bg-gray-100"
+              items-center text-gray-700 py-3 px-6 border-b hover:bg-gray-100"
             >
               {/* Số thứ tự */}
               <p className="max-sm:hidden">{index + 1}</p>
@@ -79,7 +78,14 @@ const DoctorPatientList = () => {
               {/* Tên và ảnh */}
               <div className="flex items-center gap-2">
                 <img className="w-8 rounded-full" src={patient.image} alt="" />
-                <p className="break-word">{patient.name}</p>
+                <div>
+                  <p className="break-word">{patient.name}</p>
+                  {patient.isBlocked && (
+                    <span className="text-xs text-red-500 bg-red-100 px-2 py-1 rounded-md inline-block mt-1">
+                      Blocked
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Số điện thoại */}

@@ -2,6 +2,7 @@ import React, { useContext, useEffect, useState } from "react";
 import { AdminContext } from "../../context/AdminContext";
 import axios from "axios";
 import { AppContext } from "../../context/AppContext";
+import { Link } from "react-router-dom";
 
 const PatientsList = () => {
   const { aToken, backendUrl, getAllPatients, patients } =
@@ -12,7 +13,7 @@ const PatientsList = () => {
   const [searchQuery, setSearchQuery] = useState("");
 
   const filteredPatients = patients.filter((patient) =>
-    patient._doc.name.toLowerCase().includes(searchQuery.toLowerCase())
+    patient.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   useEffect(() => {
@@ -20,8 +21,6 @@ const PatientsList = () => {
       getAllPatients();
     }
   }, [aToken]);
-
-  console.log(patients); // Check the output here
 
   return (
     <div className="w-full m-5">
@@ -46,44 +45,68 @@ const PatientsList = () => {
       </div>
 
       <div className="bg-white border rounded text-sm max-h-[80vh] min-h-[60vh] overflow-y-scroll">
-        <div className="hidden sm:grid grid-cols-[0.5fr_3fr_1fr_3fr_2.5fr_1fr_1fr] grid-flow-col py-3 px-6 border-b">
+        <div className="hidden sm:grid grid-cols-[0.5fr_3fr_2fr_3fr_2fr_2fr] grid-flow-col py-3 px-6 border-b">
           <p>#</p>
           <p>User</p>
-          <p>Age</p>
-          <p>Email </p>
           <p>Phone</p>
-          <p>Gender</p>
-          <p>Times</p>
+          <p>Email</p>
+          <p>Completed</p>
+          <p>Cancelled</p>
         </div>
 
         {filteredPatients.map((item, index) => (
-          <div
-            className="flex flex-wrap justify-between max-sm:gap-2 sm:grid sm:grid-cols-[0.5fr_3fr_1fr_3fr_2.5fr_1fr_1fr] 
-          items-center text-gray-500 py-3 px-6 border-b hover:bg-gray-100"
-            key={index}
-          >
-            <p className="max-sm:hidden">{index + 1}</p>
-            <div className="flex items-center gap-2">
-              <img className="w-8 rounded-full" src={item._doc.image} alt="" />
-              <p className="truncate">{item._doc.name}</p>
+          <Link to={`/patient-details/${item._id}`} key={index}>
+            <div
+              className="flex flex-wrap justify-between max-sm:gap-2 sm:grid sm:grid-cols-[0.5fr_3fr_2fr_3fr_2fr_2fr] 
+              items-center text-gray-700 font-medium py-3 px-6 border-b hover:bg-gray-100"
+            >
+              <p className="max-sm:hidden">{index + 1}</p>
+              <div className="flex items-center gap-2">
+                <img
+                  className="w-8 h-8 rounded-full bg-gray-200"
+                  src={item.image}
+                  alt=""
+                />
+                <div>
+                  <p className="truncate">{item.name}</p>
+                  {item.isBlocked && (
+                    <span className="text-xs text-red-500 bg-red-100 px-2 py-1 rounded-md inline-block mt-1">
+                      Blocked
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="max-sm:w-full">
+                <p className="text-xs text-gray-700  max-sm:block sm:hidden">
+                  Phone
+                </p>
+                <p className="break-word ">{item.phone}</p>
+              </div>
+
+              <div className="max-sm:w-full">
+                <p className="text-xs text-gray-700 max-sm:block sm:hidden">
+                  Email
+                </p>
+                <p className="break-word text-gray-700 font-semibold">
+                  {item.email}
+                </p>
+              </div>
+
+              <div className="max-sm:w-full">
+                <p className="text-xs text-gray-700 max-sm:block sm:hidden">
+                  Completed
+                </p>
+                <p>{item.completedAppointments}</p>
+              </div>
+              <div className="max-sm:w-full">
+                <p className="text-xs text-gray-700 max-sm:block sm:hidden">
+                  Cancelled
+                </p>
+                <p>{item.cancelledAppointments}</p>
+              </div>
             </div>
-            {/* if dob is "Not Selected" then show not set */}
-            <p className="max-sm:hidden">
-              {item._doc.dob === "Not Selected" // selected is on the l
-                ? "Not set"
-                : calculateAge(item._doc.dob)}
-            </p>
-            <p className="max-sm:hidden w-30 break-word">{item._doc.email}</p>
-            <div className="flex items-center gap-2">
-              <p>{item._doc.phone}</p>
-            </div>
-            <p className="max-sm:hidden">
-              {item._doc.gender === "Not Selected"
-                ? "Not set"
-                : item._doc.gender}
-            </p>
-            <p className="max-sm:hidden">{item.appointmentCount}</p>
-          </div>
+          </Link>
         ))}
       </div>
     </div>

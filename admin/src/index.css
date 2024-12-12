@@ -269,11 +269,10 @@ img {
   flex-wrap: wrap;
 }
 
-
 .notification-bell {
   position: relative;
   cursor: pointer;
-  width: 24px; 
+  width: 24px;
   height: 24px;
 }
 
@@ -300,50 +299,18 @@ img {
   box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.2);
 }
 
-/* Responsive cho màn hình nhỏ */
-@media (max-width: 768px) {
-  .notification-bell {
-    width: 20px; /* Giảm kích thước trên màn hình nhỏ */
-    height: 20px;
-  }
-
-  .notification-badge {
-    width: 16px; /* Badge nhỏ hơn */
-    height: 16px;
-    font-size: 8px; /* Chữ nhỏ hơn */
-    top: -3px; /* Điều chỉnh vị trí */
-    right: -3px;
-  }
-}
-
-/* Responsive cho màn hình siêu nhỏ (dưới 480px) */
-@media (max-width: 480px) {
-  .notification-bell {
-    width: 18px;
-    height: 18px;
-  }
-
-  .notification-badge {
-    width: 14px;
-    height: 14px;
-    font-size: 7px;
-    top: -2px;
-    right: -2px;
-  }
-}
-
 .notification-dropdown {
   position: absolute;
   top: 100%;
   right: 0;
-  background-color: white;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  z-index: 1000;
-  width: 400px;
-  max-height: 300px;
+  width: 350px;
+  max-height: 400px;
   overflow-y: auto;
+  background-color: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
 }
 
 .notification-dropdown.open {
@@ -363,29 +330,33 @@ img {
 }
 
 .notification-header {
-  padding: 1rem;
+  padding: 10px;
+  font-size: 16px;
   font-weight: bold;
-  border-bottom: 1px solid #eee;
-  color: #333;
+  border-bottom: 1px solid #ddd;
 }
 
 .notification-list {
-  max-height: 300px;
+  max-height: 220px;
   overflow-y: auto;
 }
 
 .notification-item {
-  padding: 0.75rem 1rem;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  border-bottom: 1px solid #f5f5f5;
-  transition: background-color 0.2s ease;
+  gap: 10px;
+  padding: 10px;
+  border-bottom: 1px solid #eee;
+}
+
+.notification-item:last-child {
+  border-bottom: none;
 }
 
 .notification-item:hover {
   background-color: #f9f9f9;
 }
+
 
 .notification-icon-small {
   font-size: 1.2rem;
@@ -394,14 +365,13 @@ img {
 
 .notification-text {
   flex: 1;
-  font-size: 0.9rem;
-  color: #555;
-  word-wrap: break-word;
+  font-size: 14px;
+  color: #333;
 }
 
 .notification-time {
   font-size: 0.8rem;
-  color: #aaa;
+  color: #999;
 }
 
 /* Scrollbar customization */
@@ -416,4 +386,110 @@ img {
 
 .notification-list::-webkit-scrollbar-thumb:hover {
   background-color: rgba(0, 0, 0, 0.3);
+}
+
+.notification-action {
+  font-weight: bold;
+}
+
+.text-green-500 {
+  color: #48bb78;
+}
+
+.text-red-500 {
+  color: #f56565;
+}
+
+.text-blue-500 {
+  color: #4299e1;
+}
+
+.text-gray-500 {
+  color: #a0aec0;
+}
+
+.mark-all-read {
+  padding: 10px;
+  font-size: 14px;
+  text-align: center;
+  color: #007bff;
+  cursor: pointer;
+  border-top: 1px solid #ddd;
+  background-color: #f9f9f9;
+}
+
+.mark-all-read:hover {
+  text-decoration: underline;
+}
+
+/* Style toàn bộ form */
+.appointment-form {
+  max-width: 600px;
+  margin: 20px auto;
+  padding: 20px;
+  background-color: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.1);
+  font-family: "Manrope", sans-serif;
+}
+
+/* Style tiêu đề */
+.appointment-form h1 {
+  font-size: 24px;
+  font-weight: bold;
+  margin-bottom: 20px;
+  text-align: center;
+  color: #333;
+}
+
+/* Style nhãn */
+.appointment-form label {
+  display: block;
+  font-size: 14px;
+  font-weight: bold;
+  margin-bottom: 5px;
+  color: #555;
+}
+
+/* Style các input */
+.appointment-form input,
+.appointment-form textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  font-size: 14px;
+  margin-bottom: 15px;
+  transition: border-color 0.3s;
+}
+
+/* Hiệu ứng khi focus vào input */
+.appointment-form input:focus,
+.appointment-form textarea:focus {
+  border-color: #007bff;
+  outline: none;
+}
+
+/* Style nút */
+.appointment-form button {
+  width: 100%;
+  padding: 10px;
+  font-size: 16px;
+  color: #fff;
+  background-color: #007bff;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.appointment-form button:hover {
+  background-color: #0056b3;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .appointment-form {
+    padding: 15px;
+  }
 }

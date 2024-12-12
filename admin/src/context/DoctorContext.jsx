@@ -14,6 +14,7 @@ const DoctorContextProvider = (props) => {
   const [appointments, setAppointments] = useState([]);
   const [dashboardData, setDashboardData] = useState(false);
   const [profileData, setProfileData] = useState(false);
+  const [notifications, setNotifications] = useState([]);
 
   const getAppointments = async () => {
     try {
@@ -25,12 +26,10 @@ const DoctorContextProvider = (props) => {
       );
       if (data.success) {
         setAppointments(data.appointments);
-        console.log(data.appointments);
       } else {
         toast.error(data.message);
       }
     } catch (error) {
-      console.log(error);
       toast.error(error.message);
     }
   };
@@ -50,7 +49,6 @@ const DoctorContextProvider = (props) => {
         toast.error(data.message);
       }
     } catch (error) {
-      console.log(error);
       toast.error(error.message);
     }
   };
@@ -71,7 +69,6 @@ const DoctorContextProvider = (props) => {
         toast.error(data.message);
       }
     } catch (error) {
-      console.log(error);
       toast.error(error.message);
     }
   };
@@ -91,7 +88,6 @@ const DoctorContextProvider = (props) => {
         toast.error(data.message);
       }
     } catch (error) {
-      console.log(error);
       toast.error(error.message);
     }
   };
@@ -103,12 +99,10 @@ const DoctorContextProvider = (props) => {
       });
       if (data.success) {
         setDashboardData(data.dashboardData);
-        console.log(data.dashboardData);
       } else {
         toast.error(data.message);
       }
     } catch (error) {
-      console.log(error);
       toast.error(error.message);
     }
   };
@@ -120,12 +114,10 @@ const DoctorContextProvider = (props) => {
       });
       if (data.success) {
         setProfileData(data.profileData);
-        console.log(data.profileData);
       } else {
         toast.error(data.message);
       }
     } catch (error) {
-      console.log(error);
       toast.error(error.message);
     }
   };
@@ -159,7 +151,6 @@ const DoctorContextProvider = (props) => {
         toast.error(data.message);
       }
     } catch (error) {
-      console.log(error);
       toast.error(error.message);
     }
   };
@@ -167,7 +158,7 @@ const DoctorContextProvider = (props) => {
   const viewRemedy = async (appointmentId) => {
     try {
       const { data } = await axios.get(
-        backendUrl + `/api/doctor/get-remedy/${appointmentId}`,
+        `${backendUrl}/api/doctor/get-remedy/${appointmentId}`,
         {
           headers: { dToken },
         }
@@ -180,15 +171,45 @@ const DoctorContextProvider = (props) => {
         return null;
       }
     } catch (error) {
-      console.log(error);
       toast.error(error.message);
       return null;
     }
   };
 
-  const fetchNotifications = async() =>{
-    
-  }
+  const fetchNotifications = async () => {
+    try {
+      const { data } = await axios.get(
+        `${backendUrl}/api/doctor/notifications`,
+        {
+          headers: { dToken },
+        }
+      );
+      if (data.success) {
+        setNotifications(data.notifications);
+      } else {
+        toast.error(data.message);
+      }
+    } catch (error) {
+      toast.error(error.message);
+    }
+  };
+
+  const markAllAsRead = async () => {
+    try {
+      const { data } = await axios.post(
+        backendUrl + "/api/doctor/mark-all-as-read",
+        {},
+        { headers: { dToken } }
+      );
+      if (data.success) {
+        fetchNotifications();
+      } else {
+        toast.error(data.message);
+      }
+    } catch (error) {
+      toast.error(error.message);
+    }
+  };
 
   const value = {
     dToken,
@@ -208,6 +229,10 @@ const DoctorContextProvider = (props) => {
     getProfileData,
     sendRemedyToPatient,
     viewRemedy,
+    notifications,
+    setNotifications,
+    fetchNotifications,
+    markAllAsRead,
   };
 
   return (

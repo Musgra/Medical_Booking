@@ -12,7 +12,6 @@ export const sendEmailController = async (req, res) => {
       message: "Email is required",
     });
   } catch (error) {
-    console.log(error);
     return res.json({
       success: false,
       message: error.message,

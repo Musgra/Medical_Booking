@@ -2,11 +2,17 @@ import doctorModel from "../models/doctorModel.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import appointmentModel from "../models/appointmentModel.js";
-import cloudinary from "cloudinary";
+import { v2 as cloudinary } from "cloudinary";
 import { sendEmailService } from "../utils/emailService.js";
 import { io } from "../server.js";
 import { sendAppointmentConfirmationEmail } from "../utils/emailService.js";
 import userModel from "../models/userModel.js";
+import reviewModel from "../models/reviewModel.js";
+import sharp from "sharp";
+import streamifier from "streamifier";
+import fs from "fs/promises";
+import path from "path";
+import { createNotification } from "../controllers/notificationController.js";
 
 const changeAvailability = async (req, res) => {
   try {
@@ -17,7 +23,6 @@ const changeAvailability = async (req, res) => {
     });
     res.json({ success: true, message: "Availability Changed" });
   } catch (error) {
-    console.log(error);
     res.json({ success: false, message: error.message });
   }
 };
@@ -38,7 +43,6 @@ const doctorList = async (req, res) => {
 
     res.json({ success: true, doctors });
   } catch (error) {
-    console.log(error);
     res.json({ success: false, message: error.message });
   }
 };
@@ -66,7 +70,6 @@ const doctorLogin = async (req, res) => {
       return res.json({ success: false, message: "Invalid credentials" });
     }
   } catch (error) {
-    console.log(error);
     return res.json({ success: false, message: error.message });
   }
 };
@@ -78,7 +81,6 @@ const doctorAppointments = async (req, res) => {
     const appointments = await appointmentModel.find({ docId });
     return res.json({ success: true, appointments });
   } catch (error) {
-    console.log(error);
     return res.json({ success: false, message: error.message });
   }
 };
@@ -95,6 +97,15 @@ const appointmentAccept = async (req, res) => {
     }
 
     const userData = await userModel.findById(userId).select("-password");
+
+    const message = `${appointmentData.docData.name} has accepted appointment request at ${appointmentData.slotTime} on ${appointmentData.slotDate}.`;
+    await createNotification(
+      docId,
+      userId,
+      appointmentId,
+      "appointment_accepted",
+      message
+    );
     const appointmentDetails = `
         Doctor: ${appointmentData.docData.name}
         Time: ${appointmentData.slotTime}
@@ -103,17 +114,10 @@ const appointmentAccept = async (req, res) => {
   `;
     await sendAppointmentConfirmationEmail(userData.email, appointmentDetails);
 
-    io.to(userId).emit("appointmentStatusUpdate", {
-      appointmentId,
-      docId,
-      userId,
-      message: "Appointment has been accepted.",
-      status: "confirmed",
-    });
+    io.to(userId).emit("newNotification");
 
     return res.json({ success: true, message: "Appointment accepted" });
   } catch (error) {
-    console.log(error);
     return res.json({ success: false, message: error.message });
   }
 };
@@ -130,19 +134,22 @@ const appointmentComplete = async (req, res) => {
         isCompleted: true,
       });
 
-      io.to(userId).emit("appointmentStatusUpdate", {
-        appointmentId,
+      const message = `${appointmentData.docData.name} has completed appointment at ${appointmentData.slotTime} on ${appointmentData.slotDate}.
+      You can now give your feedback.`;
+      await createNotification(
         docId,
         userId,
-        message: "Appointment has been completed.",
-        status: "completed",
-      });
+        appointmentId,
+        "appointment_completed",
+        message
+      );
+
+      io.to(userId).emit("newNotification");
       return res.json({ success: true, message: "Appointment completed" });
     } else {
       return res.json({ success: false, message: "Invalid appointment" });
     }
   } catch (error) {
-    console.log(error);
     return res.json({ success: false, message: error.message });
   }
 };
@@ -164,26 +171,26 @@ const appointmentCancel = async (req, res) => {
       const doctorData = await doctorModel.findById(docId);
       let slots_booked = doctorData.slots_booked;
 
-      slots_booked[slotDate] = slots_booked[slotDate].filter(
-        (e) => e !== slotTime
-      );
+      slots_booked[slotDate] = slots_booked[slotDate]
+        ? slots_booked[slotDate].filter((e) => e !== slotTime)
+        : [];
 
       await doctorModel.findByIdAndUpdate(docId, { slots_booked });
-      io.to(userId).emit("appointmentStatusUpdate", {
-        appointmentId,
+      const message = `${appointmentData.docData.name} has cancelled appointment at ${appointmentData.slotTime} on ${appointmentData.slotDate}.`;
+      await createNotification(
         docId,
         userId,
-        message: "Appointment has been cancelled.",
-        status: "cancelled",
-        cancelledBy: "doctor",
-      });
+        appointmentId,
+        "appointment_cancelled_by_doctor",
+        message
+      );
+      io.to(userId).emit("newNotification");
 
       return res.json({ success: true, message: "Appointment Cancelled" });
     } else {
       return res.json({ success: false, message: "Cancelled failed" });
     }
   } catch (error) {
-    console.log(error);
     res.json({ success: false, message: error.message });
   }
 };
@@ -221,7 +228,6 @@ const doctorDashboard = async (req, res) => {
     };
     return res.json({ success: true, dashboardData });
   } catch (error) {
-    console.log(error);
     res.json({ success: false, message: error.message });
   }
 };
@@ -233,7 +239,6 @@ const doctorProfile = async (req, res) => {
     const profileData = await doctorModel.findById(docId).select("-password");
     return res.json({ success: true, profileData });
   } catch (error) {
-    console.log(error);
     res.json({ success: false, message: error.message });
   }
 };
@@ -241,16 +246,67 @@ const doctorProfile = async (req, res) => {
 // API to update doctor profile for doctor panel
 const updateDoctorProfile = async (req, res) => {
   try {
-    const { docId, fees, address, available } = req.body;
-    await doctorModel.findByIdAndUpdate(docId, {
-      fees,
+    const { docId, address, available, phone, name } = req.body;
+
+    if (!docId) {
+      return res.json({ success: false, message: "Doctor ID is missing" });
+    }
+
+    const imageFile = req.file;
+
+    let imageUrl;
+    if (imageFile) {
+      // Đọc file từ ổ đĩa
+      const filePath = path.resolve(imageFile.path); // Xác định đường dẫn file
+      const imageBuffer = await fs.readFile(filePath);
+
+      // Resize ảnh với sharp
+      const resizedImageBuffer = await sharp(imageBuffer)
+        .resize(300, 300) // Resize ảnh về kích thước 300x300
+        .toBuffer();
+
+      // Upload ảnh lên Cloudinary qua stream
+      imageUrl = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { resource_type: "image" },
+          (error, result) => {
+            if (error) return reject(error);
+            resolve(result.secure_url);
+          }
+        );
+        stream.end(resizedImageBuffer); // Đưa buffer vào stream
+      });
+
+      // Xóa file ảnh sau khi xử lý xong
+      await fs.unlink(filePath);
+    }
+
+    const updateData = {
+      name,
       address,
       available,
+      phone,
+    };
+    if (imageUrl) {
+      updateData.image = imageUrl;
+    }
+
+    const updatedDoctor = await doctorModel.findByIdAndUpdate(
+      docId,
+      updateData,
+      {
+        new: true,
+      }
+    );
+
+    return res.json({
+      success: true,
+      message: "Doctor profile updated successfully",
+      data: updatedDoctor,
     });
-    return res.json({ success: true, message: "Profile updated" });
   } catch (error) {
-    console.log(error);
-    res.json({ success: false, message: error.message });
+    console.error(error);
+    return res.json({ success: false, message: error.message });
   }
 };
 
@@ -268,8 +324,6 @@ const sendRemedyToPatient = async (req, res) => {
     }
 
     const appointmentData = await appointmentModel.findById(appointmentId);
-    console.log(appointmentData);
-    console.log(docId);
     if (!appointmentData || appointmentData.docId !== docId) {
       return res.json({ success: false, message: "Invalid appointment" });
     }
@@ -297,7 +351,6 @@ const sendRemedyToPatient = async (req, res) => {
       remedyImage: imageUpload.secure_url,
     });
   } catch (error) {
-    console.log(error);
     return res.json({ success: false, message: error.message });
   }
 };
@@ -317,7 +370,6 @@ const viewRemedy = async (req, res) => {
       remedyImage: appointmentData.remedyImage,
     });
   } catch (error) {
-    console.log(error);
     return res.json({ success: false, message: error.message });
   }
 };
@@ -351,7 +403,6 @@ const changeDoctorPassword = async (req, res) => {
 
     res.json({ success: true, message: "Password changed successfully" });
   } catch (error) {
-    console.log(error);
     res.json({ success: false, message: error.message });
   }
 };
@@ -390,7 +441,6 @@ const getPatientList = async (req, res) => {
 
     res.json({ success: true, patients });
   } catch (error) {
-    console.log(error);
     res.json({ success: false, message: error.message });
   }
 };
@@ -411,7 +461,6 @@ const getPatientDetails = async (req, res) => {
 
     res.json({ success: true, user, appointments });
   } catch (error) {
-    console.log(error);
     res.json({ success: false, message: error.message });
   }
 };

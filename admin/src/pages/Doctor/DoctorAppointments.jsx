@@ -9,6 +9,7 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import moment from "moment";
 import { jwtDecode } from "jwt-decode";
+import { toast } from "react-toastify";
 
 const socket = io("http://localhost:4000");
 
@@ -16,7 +17,7 @@ Modal.setAppElement("#root");
 
 // Function to convert slotDate from DD_MM_YYYY to YYYY-MM-DD
 const slotDateFormatForInput = (date) => {
-  const [day, month, year] = date.split("_");
+  const [day, month, year] = date.split("/");
   const paddedDay = day.padStart(2, "0");
   const paddedMonth = month.padStart(2, "0");
   return `${year}-${paddedMonth}-${paddedDay}`;
@@ -39,7 +40,7 @@ const DoctorAppointments = () => {
     sendRemedyToPatient,
     viewRemedy,
   } = useContext(DoctorContext);
-  const { calculateAge, slotDateFormat, currency } = useContext(AppContext);
+  const { calculateAge, currency } = useContext(AppContext);
 
   const [modalIsOpen, setModalIsOpen] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
@@ -60,39 +61,15 @@ const DoctorAppointments = () => {
     const docId = decodedToken.id;
     socket.emit("joinDoctorRoom", docId);
 
-    socket.on("newAppointment", (data) => {
+    socket.on("newNotification", () => {
       getAppointments();
+      console.log("abc");
     });
 
     return () => {
-      socket.off("joinDoctorRoom");
+      socket.off("newNotification");
     };
-  }, [socket, dToken]);
-
-  useEffect(() => {
-    const decodedToken = jwtDecode(dToken);
-    const docId = decodedToken.id;
-    socket.emit("joinDoctorRoom", docId);
-
-    socket.on("appointmentStatusUpdate", (data) => {
-      console.log("Appointment status updated:", data);
-
-      if (
-        data.status === "cancelled" &&
-        data.cancelledBy === "user" &&
-        data.docId === docId
-      ) {
-        alert(
-          `Appointment ${data.appointmentId} was cancelled by the patient.`
-        );
-        getAppointments();
-      }
-    });
-
-    return () => {
-      socket.off("appointmentStatusUpdate");
-    };
-  }, [socket, dToken]);
+  }, [dToken]);
 
   const filteredAppointments = appointments.filter((appointment) => {
     const matchesDate = matchSelectedDate(appointment.slotDate, selectedDate);
@@ -166,7 +143,12 @@ const DoctorAppointments = () => {
           onChange={handleDateChange}
           dateFormat="dd/MM/yyyy"
           className="border rounded p-2 text-sm"
+          showMonthDropdown
+          showYearDropdown
+          yearDropdownItemNumber={120}
+          scrollableYearDropdown
           isClearable
+          maxDate={new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)}
         />
       </div>
 
@@ -226,7 +208,7 @@ const DoctorAppointments = () => {
         {filteredAppointments.map((item, index) => (
           <div
             className="flex flex-wrap justify-between max-sm:gap-4 max-sm:text-base sm:grid 
-            grid-cols-[0.5fr_2fr_1fr_1.5fr_3fr_2.5fr_1fr] gap-1 items-center text-gray-500 py-3 px-6 border-b hover:bg-gray-100"
+            grid-cols-[0.5fr_2fr_1fr_1.5fr_3fr_2.5fr_1fr] gap-1 items-center text-gray-700 py-3 px-6 border-b hover:bg-gray-100"
             key={index}
           >
             <p className="max-sm:hidden">{index + 1}</p>
@@ -236,7 +218,14 @@ const DoctorAppointments = () => {
                 src={item.userData.image}
                 alt=""
               />
-              <p>{item.userData.name}</p>
+              <div>
+                <p className="break-word">{item.userData.name}</p>
+                {item.userData.isBlocked && (
+                  <span className="text-xs text-red-500 bg-red-100 px-2 py-1 rounded-md inline-block mt-1">
+                    Blocked
+                  </span>
+                )}
+              </div>
             </div>
             <div>
               <p className="text-xs inline border border-primary px-2 rounded-full">
@@ -245,7 +234,8 @@ const DoctorAppointments = () => {
             </div>
             <p className="max-sm:hidden">{item.userData.phone}</p>
             <p className="max-sm:hidden">
-              {slotDateFormat(item.slotDate)}, {item.slotTime}
+              {item.slotDate},{" "}
+              {moment(item.slotTime, ["hh:mm A"]).format("HH:mm")}
             </p>
             <p>
               <button
@@ -325,7 +315,7 @@ const DoctorAppointments = () => {
             <h2 className="modal-title">Patient Details</h2>
             <form className="patient-modal-information">
               <div className="form-row">
-                <div className="form-group">
+                <div className="form-group break-word">
                   <label>Patient Name:</label>
                   <p className="form-control">
                     {selectedAppointment.patient.name}
@@ -345,7 +335,7 @@ const DoctorAppointments = () => {
                     {selectedAppointment.patient.gender}
                   </p>
                 </div>
-                <div className="form-group">
+                <div className="form-group break-word">
                   <label>Address:</label>
                   <p className="form-control">
                     {selectedAppointment.patient.address}
@@ -359,7 +349,7 @@ const DoctorAppointments = () => {
                 </p>
               </div>
               <div className="form-row">
-                <div className="form-group">
+                <div className="form-group break-word">
                   <label>Reason:</label>
                   <p className="form-control">
                     {selectedAppointment.patient.reason}
@@ -392,7 +382,6 @@ const DoctorAppointments = () => {
               <div className="modal-buttons mt-4">
                 <button
                   onClick={() => {
-                    console.log(selectedFile);
                     if (selectedFile) {
                       sendRemedyToPatient(
                         selectedAppointment._id,
@@ -416,6 +405,9 @@ const DoctorAppointments = () => {
         ) : actionType === "viewRemedy" ? (
           <div>
             <h2 className="modal-title">View Remedy</h2>
+            <p className="text-sm text-gray-500 break-word">
+              Sent to: {selectedAppointment.userData.email}
+            </p>
             <img
               src={selectedAppointment.remedyImage}
               alt="Remedy"

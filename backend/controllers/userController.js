@@ -12,6 +12,8 @@ import { sendEmailService } from "../utils/emailService.js";
 import crypto from "crypto";
 import { sendPasswordResetEmail } from "../utils/emailService.js";
 import { io } from "../server.js";
+import notificationModel from "../models/notificationModel.js";
+import { createNotification } from "../controllers/notificationController.js";
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const frontendUrl = process.env.VITE_FRONTEND_URL;
@@ -73,7 +75,6 @@ const registerUser = async (req, res) => {
       token,
     });
   } catch (error) {
-    console.log(error);
     return res.json({ success: false, message: error.message });
   }
 };
@@ -82,16 +83,24 @@ const registerUser = async (req, res) => {
 const loginUser = async (req, res) => {
   try {
     const { username, password } = req.body;
+
     const user = await userModel.findOne({ username });
 
     if (!user) {
       return res.json({ success: false, message: "User not found" });
     }
 
+    if (user.isBlocked) {
+      return res.json({
+        success: false,
+        message: "Your account is blocked. Please contact support.",
+      });
+    }
+
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
-      return res.json({ success: false, message: "Invalid password" });
+      return res.json({ success: false, message: "Incorrect password" });
     }
 
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
@@ -101,7 +110,6 @@ const loginUser = async (req, res) => {
       token,
     });
   } catch (error) {
-    console.log(error);
     return res.json({ success: false, message: error.message });
   }
 };
@@ -117,7 +125,6 @@ const getUserProfile = async (req, res) => {
       userData,
     });
   } catch (error) {
-    console.log(error);
     return res.json({ success: false, message: error.message });
   }
 };
@@ -125,10 +132,10 @@ const getUserProfile = async (req, res) => {
 // API to update user profile
 const updateUserProfile = async (req, res) => {
   try {
-    const { userId, name, phone, address, dob, gender } = req.body;
+    const { userId, name, phone, address } = req.body;
     const imageFile = req.file;
 
-    if (!name || !phone || !dob || !gender) {
+    if (!name || !phone) {
       return res.json({
         success: false,
         message: "Please fill all the fields",
@@ -161,8 +168,6 @@ const updateUserProfile = async (req, res) => {
       name,
       phone,
       address,
-      dob,
-      gender,
     });
 
     // Update user information in appointments
@@ -173,8 +178,6 @@ const updateUserProfile = async (req, res) => {
           "userData.name": name,
           "userData.phone": phone,
           "userData.address": address,
-          "userData.dob": dob,
-          "userData.gender": gender,
         },
       }
     );
@@ -213,7 +216,6 @@ const updateUserProfile = async (req, res) => {
       message: "User profile updated successfully",
     });
   } catch (error) {
-    console.log(error);
     return res.json({ success: false, message: error.message });
   }
 };
@@ -312,12 +314,25 @@ const bookAppointment = async (req, res) => {
 
     // save new slot in doctor's slots_booked
     await doctorModel.findByIdAndUpdate(docId, { slots_booked });
-    io.to(docId).emit("newAppointment", {
+    // io.to(docId).emit("newNotification", {
+    //   type: "appointment_request",
+    //   message: `${userData.name} has requested appointment at ${slotTime} on ${slotDate}`,
+    //   createdAt: new Date().toISOString(),
+    //   isRead: false,
+    //   appointmentId: newAppointment._id,
+    // });
+
+    io.to(docId).emit("newNotification");
+
+    const message = `${userData.name} has requested appointment at ${slotTime} on ${slotDate}`;
+
+    await createNotification(
+      userId,
       docId,
-      patientName: userData.name,
-      slotDate,
-      slotTime,
-    });
+      newAppointment._id,
+      "appointment_request",
+      message
+    );
 
     // Send email after successful booking
     const appointmentDetails = `
@@ -333,7 +348,6 @@ const bookAppointment = async (req, res) => {
       message: "Appointment booked successfully",
     });
   } catch (error) {
-    console.log(error);
     return res.json({ success: false, message: error.message });
   }
 };
@@ -349,7 +363,6 @@ const listAppointment = async (req, res) => {
       appointments,
     });
   } catch (error) {
-    console.log(error);
     return res.json({ success: false, message: error.message });
   }
 };
@@ -358,7 +371,6 @@ const listAppointment = async (req, res) => {
 const cancelAppointment = async (req, res) => {
   try {
     const { userId, appointmentId } = req.body;
-    console.log(appointmentId);
 
     const appointmentData = await appointmentModel.findById(appointmentId);
 
@@ -389,22 +401,23 @@ const cancelAppointment = async (req, res) => {
 
     await doctorModel.findByIdAndUpdate(docId, { slots_booked });
 
-    io.to(docId).emit("appointmentStatusUpdate", {
-      appointmentId,
+    const message = `${appointmentData.userData.name} has cancelled appointment at ${appointmentData.slotTime} on ${appointmentData.slotDate}.`;
+
+    await createNotification(
+      appointmentData.userId,
       docId,
-      userId,
-      message: "Appointment has been cancelled.",
-      status: "cancelled",
-      cancelledBy: "user",
-    });
-    console.log(docId);
+      appointmentId,
+      "appointment_cancelled_by_user",
+      message
+    );
+
+    io.to(docId).emit("newNotification");
 
     res.json({
       success: true,
       message: "Appointment Cancelled",
     });
   } catch (error) {
-    console.log(error);
     return res.json({ success: false, message: error.message });
   }
 };
@@ -426,10 +439,17 @@ const googleLogin = async (req, res) => {
     if (!user) {
       return res.json({
         success: true,
-        newUser: true, // Thêm trạng thái để frontend biết cần hiển thị form tài khoản
+        newUser: true,
         email,
         name,
         googleId: sub,
+      });
+    }
+
+    if (user.isBlocked) {
+      return res.json({
+        success: false,
+        message: "Your account is blocked. Please contact support.",
       });
     }
 
@@ -484,7 +504,6 @@ const changePassword = async (req, res) => {
       message: "Password changed successfully",
     });
   } catch (error) {
-    console.log(error);
     return res.json({ success: false, message: error.message });
   }
 };
@@ -569,39 +588,6 @@ const resetPassword = async (req, res) => {
 
     res.json({ success: true, message: "Password reset successfully" });
   } catch (error) {
-    console.log(error);
-    res.json({ success: false, message: error.message });
-  }
-};
-
-const setupUser = async (req, res) => {
-  try {
-    const { email, username, password } = req.body;
-
-    if (!username || !password) {
-      return res.json({ success: false, message: "Missing required fields" });
-    }
-
-    const existingUser = await userModel.findOne({ username });
-    if (existingUser) {
-      return res.json({ success: false, message: "Username already exists" });
-    }
-
-    const user = await userModel.findOne({ email });
-    if (!user) {
-      return res.json({ success: false, message: "User not found" });
-    }
-
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    user.username = username;
-    user.password = hashedPassword;
-    await user.save();
-
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
-    res.json({ success: true, message: "User setup completed", token });
-  } catch (error) {
     res.json({ success: false, message: error.message });
   }
 };
@@ -641,6 +627,5 @@ export {
   requestPasswordReset,
   showResetPasswordForm,
   resetPassword,
-  setupUser,
   checkTokenValidity,
 };

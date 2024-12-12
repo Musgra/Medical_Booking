@@ -10,6 +10,9 @@ import {
   deleteDoctor,
   getDoctorProfile,
   adminUpdateDoctorProfile,
+  resetDoctorPassword,
+  getPatientProfile,
+  blockUser,
 } from "../controllers/adminController.js";
 import upload from "../middlewares/multer.js";
 import authAdmin from "../middlewares/authAdmin.js";
@@ -26,6 +29,15 @@ adminRouter.post("/cancel-appointment", authAdmin, cancelAppointmentByAdmin);
 adminRouter.get("/dashboard", authAdmin, adminDashboard);
 adminRouter.get("/patients-list", authAdmin, allPatients);
 adminRouter.get("/doctor-list/:id", authAdmin, getDoctorProfile);
-adminRouter.put("/doctor-list/:id", authAdmin, adminUpdateDoctorProfile);
+adminRouter.put(
+  "/doctor-list/:id",
+  authAdmin,
+  upload.single("image"),
+  adminUpdateDoctorProfile
+);
 adminRouter.post("/delete-doctor", authAdmin, deleteDoctor);
+adminRouter.put("/reset-password/:id", authAdmin, resetDoctorPassword);
+adminRouter.get("/patient-details/:id", authAdmin, getPatientProfile);
+adminRouter.post("/block-user", authAdmin, blockUser);
+
 export default adminRouter;

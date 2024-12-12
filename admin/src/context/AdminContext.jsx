@@ -10,9 +10,11 @@ const AdminContextProvider = (props) => {
   );
   const [doctors, setDoctors] = useState([]);
   const [appointments, setAppointments] = useState([]);
-  const [dashboardData, setDashboardData] = useState(false);
+  const [dashboardData, setDashboardData] = useState([]);
   const [patients, setPatients] = useState([]);
-  const [doctorProfileData, setDoctorProfileData] = useState(false);
+  const [patientDetails, setPatientDetails] = useState([]);
+  const [appointmentsDetails, setAppointmentsDetails] = useState([]);
+  const [doctorProfileData, setDoctorProfileData] = useState([]);
   const [reviews, setReviews] = useState([]);
 
   const backendUrl = import.meta.env.VITE_BACKEND_URL;
@@ -27,7 +29,24 @@ const AdminContextProvider = (props) => {
       );
       if (data.success) {
         setDoctors(data.doctors);
-        console.log(data.doctors);
+      } else {
+        toast.error(data.message);
+      }
+    } catch (error) {
+      toast.error(error.message);
+    }
+  };
+
+  const handleBlockUser = async (userId, isBlocked) => {
+    try {
+      const { data } = await axios.post(
+        backendUrl + "/api/admin/block-user",
+        { userId, isBlocked },
+        { headers: { aToken } }
+      );
+      if (data.success) {
+        toast.success(data.message);
+        getPatientDetails(userId);
       } else {
         toast.error(data.message);
       }
@@ -62,7 +81,6 @@ const AdminContextProvider = (props) => {
       });
       if (data.success) {
         setAppointments(data.appointments);
-        console.log(data.appointments);
       } else {
         toast.error(data.message);
       }
@@ -102,7 +120,6 @@ const AdminContextProvider = (props) => {
       });
       if (data.success) {
         setDashboardData(data.dashboardData);
-        console.log(data.dashboardData);
       } else {
         toast.error(data.message);
       }
@@ -121,7 +138,23 @@ const AdminContextProvider = (props) => {
       );
       if (data.success) {
         setPatients(data.patients);
-        console.log(data.patients);
+      } else {
+        toast.error(data.message);
+      }
+    } catch (error) {
+      toast.error(error.message);
+    }
+  };
+
+  const getPatientDetails = async (userId) => {
+    try {
+      const { data } = await axios.get(
+        backendUrl + `/api/admin/patient-details/${userId}`,
+        { headers: { aToken } }
+      );
+      if (data.success) {
+        setPatientDetails(data.patients);
+        setAppointmentsDetails(data.appointments);
       } else {
         toast.error(data.message);
       }
@@ -133,11 +166,9 @@ const AdminContextProvider = (props) => {
   const getDoctorProfileData = async (id) => {
     try {
       if (!id) {
-        toast.error("Doctor ID is missing neh");
-        console.log("Doctor ID is missing:", id);
+        toast.error("Doctor ID is missing ");
         return;
       } else {
-        console.log("Doctor ID passed:", id);
       }
       const { data } = await axios.get(
         backendUrl + `/api/admin/doctor-list/${id}`,
@@ -147,12 +178,10 @@ const AdminContextProvider = (props) => {
       );
       if (data.success) {
         setDoctorProfileData(data.doctorProfileData);
-        console.log(data.doctorProfileData);
       } else {
         toast.error(data.message);
       }
     } catch (error) {
-      console.log(error, "error in getDoctorProfileData");
       toast.error(error.message);
     }
   };
@@ -183,7 +212,6 @@ const AdminContextProvider = (props) => {
       );
       if (data.success) {
         setReviews(data.reviews);
-        console.log(data.reviews);
       } else {
         toast.error(data.message);
       }
@@ -211,7 +239,6 @@ const AdminContextProvider = (props) => {
         toast.error(data.message);
       }
     } catch (error) {
-      console.log(reviewId);
       toast.error("Failed to delete review");
     }
   };
@@ -231,6 +258,10 @@ const AdminContextProvider = (props) => {
     dashboardData,
     getAllPatients,
     patients,
+    getPatientDetails,
+    patientDetails,
+    appointmentsDetails,
+    setAppointmentsDetails,
     deleteDoctor,
     doctorProfileData,
     getDoctorProfileData,
@@ -238,6 +269,7 @@ const AdminContextProvider = (props) => {
     getAllReviews,
     deleteReview,
     reviews,
+    handleBlockUser,
   };
 
   return (

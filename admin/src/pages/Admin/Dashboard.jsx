@@ -7,8 +7,6 @@ const Dashboard = () => {
   const { aToken, getDashboardData, cancelAppointment, dashboardData } =
     useContext(AdminContext);
 
-  const { slotDateFormat } = useContext(AppContext);
-
   useEffect(() => {
     if (aToken) {
       getDashboardData();
@@ -94,9 +92,7 @@ const Dashboard = () => {
                     <p className="text-gray-800 font-semibold">
                       {item.docData.name}
                     </p>
-                    <p className="text-gray-800">
-                      {slotDateFormat(item.slotDate)}
-                    </p>
+                    <p className="text-gray-800">{item.slotDate}</p>
                   </div>
                   {item.cancelled ? (
                     <p className="text-red-400 text-xs font-medium">

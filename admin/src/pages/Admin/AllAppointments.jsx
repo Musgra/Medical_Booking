@@ -11,7 +11,7 @@ import { formatDate } from "../../utils/formatDate";
 Modal.setAppElement("#root");
 
 const slotDateFormatForInput = (date) => {
-  const [day, month, year] = date.split("_");
+  const [day, month, year] = date.split("/");
   const paddedDay = day.padStart(2, "0");
   const paddedMonth = month.padStart(2, "0");
   return `${year}-${paddedMonth}-${paddedDay}`;
@@ -26,7 +26,7 @@ const matchSelectedDate = (slotDate, selectedDate) => {
 const AllAppointments = () => {
   const { aToken, appointments, getAllAppointments, cancelAppointment } =
     useContext(AdminContext);
-  const { calculateAge, slotDateFormat, currency } = useContext(AppContext);
+  const { currency } = useContext(AppContext);
 
   const [sortedAppointments, setSortedAppointments] = useState([]);
   const [isAscending, setIsAscending] = useState(false);
@@ -144,7 +144,12 @@ const AllAppointments = () => {
             onChange={handleDateChange}
             dateFormat="dd/MM/yyyy"
             className="border rounded p-2 text-sm"
+            showMonthDropdown
+            showYearDropdown
+            yearDropdownItemNumber={120}
+            scrollableYearDropdown
             isClearable
+            maxDate={new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)}
           />
           <label htmlFor="filter-status" className="text-sm font-medium">
             Filter by Status:
@@ -178,10 +183,10 @@ const AllAppointments = () => {
       </div>
 
       <div className="bg-white border rounded text-sm max-h-[80vh] min-h-[60vh] overflow-y-scroll">
-        <div className="hidden sm:grid grid-cols-[0.5fr_3fr_1fr_3fr_3fr_1fr_1fr] grid-flow-col py-3 px-6 border-b">
+        <div className="hidden sm:grid grid-cols-[0.5fr_3fr_3fr_3fr_3fr_1fr_1fr] grid-flow-col py-3 px-6 border-b">
           <p>#</p>
           <p>Patient</p>
-          <p>Age</p>
+          <p>Email</p>
           <p>
             Date & Time
             <button onClick={sortAppointments}>
@@ -195,8 +200,8 @@ const AllAppointments = () => {
 
         {filteredAppointments.map((item, index) => (
           <div
-            className="flex flex-wrap justify-between max-sm:gap-2 sm:grid sm:grid-cols-[0.5fr_3fr_1fr_3fr_3fr_1fr_1fr] 
-            items-center text-gray-500 py-3 px-6 border-b hover:bg-gray-100"
+            className="flex flex-wrap justify-between max-sm:gap-2 sm:grid sm:grid-cols-[0.5fr_3fr_3fr_3fr_3fr_1fr_1fr] 
+            items-center text-gray-700 py-3 px-6 border-b hover:bg-gray-100"
             key={index}
           >
             <p className="max-sm:hidden">{index + 1}</p>
@@ -206,14 +211,18 @@ const AllAppointments = () => {
                 src={item.userData.image}
                 alt=""
               />
-              <p className="break-word">{item.userData.name}</p>
+              <div>
+                <p className="break-word">{item.userData.name}</p>
+                {item.userData.isBlocked && (
+                  <span className="text-xs text-red-500 bg-red-100 px-2 py-1 rounded-md inline-block mt-1">
+                    Blocked
+                  </span>
+                )}
+              </div>
             </div>
-            <p className="max-sm:hidden break-word">
-              {item.userData.dob === "Not Selected"
-                ? "Not set"
-                : calculateAge(item.userData.dob)}
-            </p>
+            <p className="max-sm:hidden break-word">{item.userData.email}</p>
             <p>{formatDate(item.slotDate, item.slotTime)}</p>
+
             <div className="flex items-center gap-2">
               <img
                 className="w-8 rounded-full bg-gray-200"
@@ -228,7 +237,8 @@ const AllAppointments = () => {
             <div className="flex items-center break-word">
               {item.cancelled ? (
                 <p className="text-red-400 text-xs font-medium">
-                  Cancelled by {item.cancelledBy === "doctor" ? "Doctor" : "User"}
+                  Cancelled by{" "}
+                  {item.cancelledBy === "doctor" ? "Doctor" : "User"}
                 </p>
               ) : item.isCompleted ? (
                 <p className="text-green-400 text-xs font-medium">Completed</p>

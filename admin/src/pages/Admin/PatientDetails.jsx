@@ -1,8 +1,6 @@
 import React, { useContext, useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { DoctorContext } from "../../context/DoctorContext";
-import { toast } from "react-toastify";
-import axios from "axios";
+import { AdminContext } from "../../context/AdminContext";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import moment from "moment";
@@ -30,40 +28,32 @@ const formatDate = (dateString) => {
 };
 
 const PatientDetails = () => {
-  const { backendUrl, dToken } = useContext(DoctorContext);
-  const { userId } = useParams();
+  const {
+    backendUrl,
+    aToken,
+    getPatientDetails,
+    patientDetails,
+    setPatientDetails,
+    getAllAppointments,
+    appointmentsDetails,
+    setAppointmentsDetails,
+    handleBlockUser,
+  } = useContext(AdminContext);
+  const { id } = useParams();
   const navigate = useNavigate();
-  const [patient, setPatient] = useState(null);
-  const [appointments, setAppointments] = useState([]);
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("");
+  const [selectedDoctor, setSelectedDoctor] = useState("");
   const [modalIsOpen, setModalIsOpen] = useState(false);
+  const [confirmationModalIsOpen, setConfirmationModalIsOpen] = useState(false);
+  const [actionType, setActionType] = useState(""); // "block" hoặc "unblock"
   const [selectedAppointment, setSelectedAppointment] = useState(null);
 
   useEffect(() => {
-    const fetchPatientDetails = async () => {
-      try {
-        const { data } = await axios.get(
-          `${backendUrl}/api/doctor/patient/${userId}`,
-          {
-            headers: { dToken },
-          }
-        );
-        if (data.success) {
-          setPatient(data.user);
-          setAppointments(data.appointments);
-        } else {
-          toast.error(data.message);
-        }
-      } catch (error) {
-        toast.error(error.message);
-      }
-    };
+    getPatientDetails(id);
+  }, [id]);
 
-    fetchPatientDetails();
-  }, [userId, dToken]);
-
-  const filteredAppointments = appointments.filter((appointment) => {
+  const filteredAppointments = appointmentsDetails.filter((appointment) => {
     const matchesDate = matchSelectedDate(appointment.slotDate, selectedDate);
     const matchesStatus =
       selectedStatus === ""
@@ -73,7 +63,12 @@ const PatientDetails = () => {
         : selectedStatus === "Cancelled"
         ? appointment.cancelled
         : !appointment.isCompleted && !appointment.cancelled;
-    return matchesDate && matchesStatus;
+    const matchesDoctor =
+      selectedDoctor === "" ||
+      appointment.docData.name
+        .toLowerCase()
+        .includes(selectedDoctor.toLowerCase()); // Lọc theo tên bác sĩ
+    return matchesDate && matchesStatus && matchesDoctor;
   });
 
   const handleDateChange = (date) => {
@@ -90,6 +85,21 @@ const PatientDetails = () => {
     setSelectedAppointment(null);
   };
 
+  const handleBlockClick = (action) => {
+    setActionType(action);
+    setConfirmationModalIsOpen(true);
+  };
+
+  const handleDoctorNameChange = (event) => {
+    setSelectedDoctor(event.target.value);
+  };
+
+  const uniqueDoctors = [
+    ...new Set(
+      appointmentsDetails.map((appointment) => appointment.docData.name)
+    ),
+  ];
+
   return (
     <div className="m-5 w-full">
       <button
@@ -98,18 +108,34 @@ const PatientDetails = () => {
       >
         Back
       </button>
-      {patient ? (
+      {patientDetails ? (
         <>
-          <h2 className="text-2xl font-semibold mb-4">
-            {patient.name}'s Details
-          </h2>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-2">
+            <h2 className="text-2xl font-semibold text-center sm:text-left">
+              {patientDetails.name}'s Details
+            </h2>
+            <button
+              className={`mr-4 w-full sm:w-auto py-2 px-4 rounded hover:opacity-90 transition ${
+                patientDetails.isBlocked
+                  ? "bg-green-500 text-white hover:bg-green-600"
+                  : "bg-red-500 text-white hover:bg-red-600"
+              }`}
+              onClick={() =>
+                handleBlockClick(patientDetails.isBlocked ? "unblock" : "block")
+              }
+            >
+              {patientDetails.isBlocked ? "Unblock User" : "Block User"}
+            </button>
+          </div>
+
           <div className="bg-white border rounded p-4">
-            <p className="text-sm font-medium">Email: {patient.email}</p>
-            <p className="text-sm font-medium">Phone: {patient.phone}</p>
+            <p className="text-sm font-medium">Email: {patientDetails.email}</p>
+            <p className="text-sm font-medium">Phone: {patientDetails.phone}</p>
             <p className="text-sm font-medium">
-              Address: {patient.address || "Not Set"}
+              Address: {patientDetails.address || "Not Set"}
             </p>
           </div>
+
           <h3 className="text-xl font-medium mt-6 mb-4">Appointments</h3>
 
           <div className="flex flex-wrap items-center gap-4 mb-4">
@@ -122,15 +148,15 @@ const PatientDetails = () => {
                   ? moment(selectedDate, "YYYY-MM-DD").toDate()
                   : null
               }
-              onChange={handleDateChange}
+              onChange={(date) =>
+                setSelectedDate(date ? moment(date).format("YYYY-MM-DD") : "")
+              }
               dateFormat="dd/MM/yyyy"
               className="border rounded p-2 text-sm"
               showMonthDropdown
               showYearDropdown
-              yearDropdownItemNumber={120}
-              scrollableYearDropdown
-              isClearable
               maxDate={new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)}
+              isClearable
             />
             <label htmlFor="filter-status" className="text-sm font-medium">
               Filter by Status:
@@ -145,13 +171,29 @@ const PatientDetails = () => {
               <option value="Cancelled">Cancelled</option>
               <option value="Pending">Pending</option>
             </select>
+            <label htmlFor="filter-doctor" className="text-sm font-medium">
+              Filter by Doctor:
+            </label>
+            <select
+              value={selectedDoctor}
+              onChange={(e) => setSelectedDoctor(e.target.value)}
+              className="border rounded p-2 text-sm"
+            >
+              <option value="">All Doctors</option>
+              {uniqueDoctors.map((doctor, index) => (
+                <option key={index} value={doctor}>
+                  {doctor}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="bg-white border rounded text-sm max-h-[60vh] overflow-y-scroll">
-            <div className="max-sm:hidden grid grid-cols-[0.5fr_1fr_2fr_1fr_1.5fr] gap-1 py-3 px-6 border-b">
+            <div className="max-sm:hidden grid grid-cols-[0.5fr_1fr_2fr_2fr_1fr_1.5fr] gap-1 py-3 px-6 border-b">
               <p>#</p>
               <p>Payment</p>
               <p>Date & Time</p>
+              <p>Doctor</p>
               <p>Status</p>
               <p>Patient Details</p>
             </div>
@@ -163,9 +205,9 @@ const PatientDetails = () => {
               filteredAppointments.map((appointment, index) => (
                 <div
                   key={index}
-                  className="grid grid-cols-[0.5fr_1fr_2fr_1fr_1.5fr] gap-1 items-center text-gray-700 py-3 px-6 border-b hover:bg-gray-100"
+                  className="grid grid-cols-[0.5fr_1fr_2fr_2fr_1fr_1.5fr] sm:grid-cols-[0.5fr_1fr_2fr_2fr_1fr_1.5fr] gap-1 items-center text-gray-700 py-3 px-6 border-b hover:bg-gray-100"
                 >
-                  <p className="max-sm:hidden">{index + 1}</p>
+                  <p className="hidden sm:block">{index + 1}</p>
                   <div>
                     <p className="text-xs inline border border-primary px-2 rounded-full">
                       {appointment.payment ? "Online" : "Cash"}
@@ -175,6 +217,15 @@ const PatientDetails = () => {
                     {appointment.slotDate},{" "}
                     {moment(appointment.slotTime, ["hh:mm A"]).format("HH:mm")}
                   </p>
+                  <div className="flex items-center gap-2 max-sm:flex-col max-sm:items-start">
+                    <img
+                      src={appointment.docData.image}
+                      className="w-8 rounded-full bg-gray-200"
+                      alt=""
+                    />
+                    <p className="text-sm">{appointment.docData.name}</p>
+                  </div>
+
                   <p
                     className={`text-xs font-medium ${
                       appointment.isCompleted
@@ -187,11 +238,7 @@ const PatientDetails = () => {
                     {appointment.isCompleted
                       ? "Completed"
                       : appointment.cancelled
-                      ? `Cancelled by ${
-                          appointment.cancelledBy === "doctor"
-                            ? "you"
-                            : appointment.cancelledBy
-                        }`
+                      ? `Cancelled by ${appointment.cancelledBy}`
                       : "Pending"}
                   </p>
 
@@ -268,6 +315,43 @@ const PatientDetails = () => {
                 </div>
               </div>
             )}
+          </Modal>
+          <Modal
+            isOpen={confirmationModalIsOpen}
+            onRequestClose={() => setConfirmationModalIsOpen(false)}
+            contentLabel="Confirmation"
+            className="modal"
+            overlayClassName="overlay"
+          >
+            <div className="p-4">
+              <h2 className="text-lg font-semibold mb-4">
+                {actionType === "block" ? "Block User" : "Unblock User"}
+              </h2>
+              <p>
+                {actionType === "block"
+                  ? "Are you sure you want to block this user? They won't be able to use the system."
+                  : "Are you sure you want to unblock this user? They will regain access to the system."}
+              </p>
+              <div className="flex justify-end mt-4 gap-4">
+                <button
+                  onClick={() => setConfirmationModalIsOpen(false)}
+                  className="btn-cancel"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    handleBlockUser(patientDetails._id, actionType === "block");
+                    setConfirmationModalIsOpen(false);
+                  }}
+                  className={`${
+                    actionType === "block" ? "bg-red-500" : "bg-green-500"
+                  } text-white py-2 px-4 rounded hover:opacity-90`}
+                >
+                  Confirm
+                </button>
+              </div>
+            </div>
           </Modal>
         </>
       ) : (

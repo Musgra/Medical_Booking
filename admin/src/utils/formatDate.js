@@ -1,9 +1,13 @@
 export const formatDate = (dateString, timeString = "") => {
   let date;
+
+  if (dateString.includes("/")) {
+    const [day, month, year] = dateString.split("/"); 
+    dateString = `${year}-${month}-${day}`; 
+  }
+
   if (timeString) {
-    date = new Date(
-      dateString.split("_").reverse().join("-") + " " + timeString
-    );
+    date = new Date(`${dateString} ${timeString}`);
   } else {
     date = new Date(dateString);
   }

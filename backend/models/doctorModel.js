@@ -46,8 +46,9 @@ const doctorSchema = new mongoose.Schema(
       required: true,
     },
     address: {
-      type: Object,
-      required: true,
+      type: String,
+      default: "",
+      maxlength: 100,
     },
     date: {
       type: Number,
@@ -66,6 +67,12 @@ const doctorSchema = new mongoose.Schema(
     totalRating: {
       type: Number,
       default: 0,
+    },
+    phone: {
+      type: String,
+      required: true,
+      minlength: 10,
+      maxlength: 10,
     },
   },
   { minimize: false }

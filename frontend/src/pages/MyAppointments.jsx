@@ -17,14 +17,8 @@ const socket = io("http://localhost:4000");
 Modal.setAppElement("#root");
 
 const MyAppointments = () => {
-  const {
-    backendUrl,
-    token,
-    getDoctorsData,
-    addReview,
-    userData,
-    slotDateFormat,
-  } = useContext(AppContext);
+  const { backendUrl, token, getDoctorsData, addReview, userData } =
+    useContext(AppContext);
   const navigate = useNavigate();
 
   const [isLoading, setIsLoading] = useState(true);
@@ -52,11 +46,9 @@ const MyAppointments = () => {
       });
       if (data.success) {
         setAppointments(data.appointments.reverse());
-        console.log(data.appointments);
       }
       setIsLoading(false);
     } catch (error) {
-      console.log(error);
       toast.error(error.message);
       setIsLoading(false);
     }
@@ -98,41 +90,15 @@ const MyAppointments = () => {
     const userId = decodedToken.id;
     socket.emit("joinUserRoom", userId);
 
-    const handleNewAppointment = (data) => {
-      if (data.userId === userId) {
-        console.log("New appointment received:", data);
-        getUserAppointment();
-      }
-    };
-
-    const handleAppointmentStatusUpdate = (data) => {
-      console.log("Appointment status updated:", data);
-      if (data.userId === userId) {
-        if (data.status === "cancelled" && data.cancelledBy === "doctor") {
-          alert(
-            `Appointment ${data.appointmentId} was cancelled by the doctor.`
-          );
-        } else if (data.status === "confirmed") {
-          alert(
-            `Appointment ${data.appointmentId} was accepted by the doctor.`
-          );
-        } else if (data.status === "completed") {
-          alert(
-            `Appointment ${data.appointmentId} was completed. You can give feedback to the doctor.`
-          );
-        }
-        getUserAppointment();
-      }
-    };
-
-    socket.on("newAppointment", handleNewAppointment);
-    socket.on("appointmentStatusUpdate", handleAppointmentStatusUpdate);
+    socket.on("newNotification", () => {
+      getUserAppointment();
+      console.log("abcdè");
+    });
 
     return () => {
-      socket.off("newAppointment", handleNewAppointment);
-      socket.off("appointmentStatusUpdate", handleAppointmentStatusUpdate);
+      socket.off("newNotification");
     };
-  }, [token, socket]);
+  }, [token]);
 
   const openFeedbackModal = (appointment) => {
     setSelectedAppointment(appointment);
@@ -213,7 +179,12 @@ const MyAppointments = () => {
               onChange={handleDateChange}
               dateFormat="dd/MM/yyyy"
               className="border rounded p-2 text-sm"
+              showMonthDropdown
+              showYearDropdown
+              yearDropdownItemNumber={120}
+              scrollableYearDropdown
               isClearable
+              maxDate={new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)}
             />
           </div>
 
@@ -267,13 +238,13 @@ const MyAppointments = () => {
                 </p>
                 <p>{item.docData.specialty}</p>
                 <p className="text-zinc-700 font-medium mt-1">Address:</p>
-                <p className="text-xs">{item.docData.address.line1}</p>
-                <p className="text-xs">{item.docData.address.line2}</p>
+                <p className="text-xs">{item.docData.address}</p>
                 <p className="text-xs mt-1">
                   <span className="text-sm text-neutral-700 font-medium">
                     Date & Time:
                   </span>{" "}
-                  {slotDateFormat(item.slotDate)} | {item.slotTime}{" "}
+                  {item.slotDate} |{" "}
+                  {moment(item.slotTime, ["hh:mm A"]).format("HH:mm")}
                 </p>
               </div>
               <div></div>
@@ -332,6 +303,14 @@ const MyAppointments = () => {
                     className="text-sm text-blue-600 text-center sm:min-w-48 py-2 border border-blue-600 rounded-lg transition-all duration-300 hover:bg-blue-600 hover:text-white flex items-center justify-center"
                   >
                     📝 Give Feedback
+                  </button>
+                )}
+                {item.isCompleted && item.isReviewed && (
+                  <button
+                    className="text-sm text-blue-600 text-center sm:min-w-48 py-2 border border-blue-600 
+                  rounded-lg transition-all duration-300 hover:bg-blue-600 hover:text-white flex items-center justify-center"
+                  >
+                    Feedback Given
                   </button>
                 )}
               </div>
@@ -411,7 +390,7 @@ const MyAppointments = () => {
               </div>
               <div className="form-group">
                 <label>Address:</label>
-                <p className="form-control">
+                <p className="form-control break-word">
                   {appointmentDetails.patient.address}
                 </p>
               </div>
@@ -423,7 +402,7 @@ const MyAppointments = () => {
             <div className="form-row">
               <div className="form-group">
                 <label>Reason:</label>
-                <p className="form-control">
+                <p className="form-control break-word">
                   {appointmentDetails.patient.reason}
                 </p>
               </div>

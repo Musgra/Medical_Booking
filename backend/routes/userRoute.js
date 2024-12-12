@@ -14,6 +14,11 @@ import {
   showResetPasswordForm,
   checkTokenValidity,
 } from "../controllers/userController.js";
+import {
+  getNotifications,
+  markAllAsRead,
+  markAsRead,
+} from "../controllers/notificationController.js";
 import authUser from "../middlewares/authUser.js";
 import upload from "../middlewares/multer.js";
 import reviewRouter from "./reviewRoute.js";
@@ -41,5 +46,12 @@ userRouter.get("/forgot-password", requestPasswordReset);
 userRouter.get("/reset-password/:token", showResetPasswordForm);
 userRouter.post("/reset-password/:token", resetPassword);
 userRouter.get("/check-token/:token", checkTokenValidity);
+userRouter.get("/notifications", authUser, getNotifications);
+userRouter.post("/mark-all-as-read", authUser, markAllAsRead);
+userRouter.put(
+  "/notifications/:notificationId/markAsRead",
+  authUser,
+  markAsRead
+);
 
 export default userRouter;

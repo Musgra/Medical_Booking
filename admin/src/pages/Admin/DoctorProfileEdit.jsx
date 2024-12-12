@@ -4,8 +4,12 @@ import axios from "axios";
 import { AdminContext } from "../../context/AdminContext";
 import { useParams } from "react-router-dom";
 import { experienceOptions, specialtyOptions } from "../../utils/options";
+import Modal from "react-modal";
+import { FaEye, FaEyeSlash } from "react-icons/fa";
 
-const DoctorProfileEdit = ({ onSave }) => {
+Modal.setAppElement("#root");
+
+const DoctorProfileEdit = ({ onSave, onCancel }) => {
   const { id } = useParams();
   const {
     doctorProfileData,
@@ -25,13 +29,19 @@ const DoctorProfileEdit = ({ onSave }) => {
     doctorProfileData.specialty || "General physician"
   );
   const [degree, setDegree] = useState(doctorProfileData.degree || "");
-  const [address1, setAddress1] = useState(
-    doctorProfileData.address.line1 || ""
+  const [address, setAddress] = useState(doctorProfileData.address || "");
+
+  const [available, setAvailable] = useState(
+    doctorProfileData.available || false
   );
-  const [address2, setAddress2] = useState(
-    doctorProfileData.address.line2 || ""
-  );
-  const [available, setAvailable] = useState(doctorProfileData.available || false);
+  const [phone, setPhone] = useState(doctorProfileData.phone || "");
+  const [email, setEmail] = useState(doctorProfileData.email || "");
+  const [phoneError, setPhoneError] = useState("");
+  const [modalIsOpen, setModalIsOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const onSubmitHandler = async (e) => {
     e.preventDefault();
@@ -41,64 +51,93 @@ const DoctorProfileEdit = ({ onSave }) => {
         return toast.error("Please upload doctor picture");
       }
 
+      if (phone.length !== 10) {
+        setPhoneError("Phone number must be exactly 10 digits.");
+        return;
+      }
+
       const formData = new FormData();
       formData.append("name", name);
+      formData.append("email", email);
       formData.append("experience", experience);
       formData.append("fees", Number(fees));
       formData.append("about", about);
       formData.append("specialty", specialty);
       formData.append("degree", degree);
-      formData.append(
-        "address",
-        JSON.stringify({ line1: address1, line2: address2 })
-      );
+      formData.append("address", address);
       formData.append("available", available);
-
-      formData.forEach((value, key) => {
-        console.log(`${key}: ${value}`);
-      });
+      formData.append("phone", phone);
+      if (docImg instanceof File) {
+        formData.append("image", docImg);
+      }
 
       const { data } = await axios.put(
-        backendUrl + `/api/admin/doctor-list/${id}`,
+        `${backendUrl}/api/admin/doctor-list/${id}`,
         formData,
         {
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "multipart/form-data",
             aToken,
           },
         }
       );
-      
 
       if (data.success) {
         toast.success(data.message);
         setDoctorProfileData({
           ...doctorProfileData,
-          image: docImg,
+          image: docImg instanceof File ? URL.createObjectURL(docImg) : docImg,
           name,
           experience,
           fees,
           about,
           specialty,
           degree,
-          address: { line1: address1, line2: address2 },
+          address,
           available,
+          phone,
+          email,
         });
-
-        console.log("doctorProfileData", doctorProfileData);
-        onSave(); // Call the onSave prop to navigate back
+        onSave();
       } else {
         toast.error(data.message);
       }
     } catch (error) {
       toast.error(error.message);
-      console.log(error);
     }
   };
 
-  useEffect(() => {
-    console.log("doctorProfileData", doctorProfileData);
-  }, [doctorProfileData]);
+  const closeModal = () => {
+    setModalIsOpen(false);
+  };
+
+  const handleResetPassword = async () => {
+    if (newPassword !== confirmPassword) {
+      return toast.error("Passwords do not match");
+    }
+
+    if (newPassword.length < 8) {
+      return toast.error("Password must be at least 8 characters");
+    }
+
+    try {
+      const { data } = await axios.put(
+        `${backendUrl}/api/admin/reset-password/${id}`,
+        { password: newPassword },
+        { headers: { aToken } }
+      );
+
+      if (data.success) {
+        toast.success("Password reset successfully");
+        closeModal();
+      } else {
+        toast.error(data.message);
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to reset password");
+    }
+  };
 
   return (
     <form onSubmit={onSubmitHandler} className="m-5 w-full" autoComplete="off">
@@ -138,6 +177,17 @@ const DoctorProfileEdit = ({ onSave }) => {
                 className="border rounded px-3 py-2"
                 type="text"
                 placeholder="Name"
+                required
+              />
+            </div>
+            <div className="flex-1 flex flex-col gap-1">
+              <p>Doctor's Email</p>
+              <input
+                onChange={(e) => setEmail(e.target.value)}
+                value={email}
+                className="border rounded px-3 py-2"
+                type="text"
+                placeholder="Email"
                 required
               />
             </div>
@@ -205,22 +255,41 @@ const DoctorProfileEdit = ({ onSave }) => {
             <div className="flex-1 flex flex-col gap-1">
               <p>Address</p>
               <input
-                onChange={(e) => setAddress1(e.target.value)}
-                value={address1}
+                onChange={(e) => setAddress(e.target.value)}
+                value={address}
                 className="border rounded px-3 py-2"
                 type="text"
-                placeholder="Address 1"
+                placeholder="Address"
                 required
-              />
-              <input
-                onChange={(e) => setAddress2(e.target.value)}
-                value={address2}
-                className="border rounded px-3 py-2"
-                type="text"
-                placeholder="Address 2"
               />
             </div>
           </div>
+        </div>
+
+        <div className="flex-1 flex flex-col gap-1">
+          <p>Doctor Phone</p>
+          <input
+            onChange={(e) => {
+              const value = e.target.value;
+              if (!/^\d*$/.test(value)) {
+                setPhoneError("Only numbers are allowed");
+                return;
+              }
+              if (value.length > 10) {
+                setPhoneError("Phone number must be exactly 10 digits."); // Quá 10 ký tự
+                return;
+              }
+              setPhoneError("");
+              setPhone(value);
+            }}
+            value={phone}
+            className="border rounded px-3 py-2"
+            type="text"
+            placeholder="Phone"
+            required
+            maxLength={10}
+          />
+          {phoneError && <p className="text-red-500 text-sm">{phoneError}</p>}
         </div>
 
         <div>
@@ -230,6 +299,11 @@ const DoctorProfileEdit = ({ onSave }) => {
             value={about}
             className="w-full px-4 pt-2 border rounded"
             placeholder="Write about doctor ..."
+            style={{
+              wordWrap: "break-word",
+              overflowWrap: "break-word",
+              resize: "none",
+            }}
             rows={5}
             required
           />
@@ -244,12 +318,96 @@ const DoctorProfileEdit = ({ onSave }) => {
           <label htmlFor="">Available</label>
         </div>
 
-        <button
-          type="submit"
-          className="bg-primary px-10 py-3 mt-4 text-white rounded-full"
+        <div className="flex-1 flex flex-col gap-1 mt-3">
+          <p>Reset Doctor's Password</p>
+          <button
+            type="button"
+            onClick={() => setModalIsOpen(true)}
+            className="bg-gray-300 px-5 py-2 rounded-full text-gray-700 mt-1"
+          >
+            Reset Password
+          </button>
+        </div>
+
+        <Modal
+          isOpen={modalIsOpen}
+          onRequestClose={closeModal}
+          contentLabel="Reset Password Modal"
+          className="modal"
+          overlayClassName="overlay"
         >
-          Save
-        </button>
+          <h2 className="mb-4 text-lg font-bold">Reset Password</h2>
+
+          <div className="relative mb-3">
+            <input
+              type={showNewPassword ? "text" : "password"}
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="w-full border px-3 py-2 rounded"
+              placeholder="New Password"
+            />
+            <button
+              type="button"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500"
+              onClick={() => setShowNewPassword(!showNewPassword)}
+            >
+              {showNewPassword ? <FaEyeSlash /> : <FaEye />}
+            </button>
+          </div>
+
+          <div className="relative mb-3">
+            <input
+              type={showConfirmPassword ? "text" : "password"}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="w-full border px-3 py-2 rounded"
+              placeholder="Confirm Password"
+            />
+            <button
+              type="button"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500"
+              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+            >
+              {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
+            </button>
+          </div>
+
+          <div className="flex justify-end gap-4">
+            <button
+              onClick={handleResetPassword}
+              className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded transition"
+            >
+              Save Password
+            </button>
+            <button
+              onClick={() => {
+                closeModal();
+                setNewPassword("");
+                setConfirmPassword("");
+              }}
+              className="bg-gray-300 hover:bg-gray-400 text-gray-700 px-6 py-2 rounded transition"
+            >
+              Cancel
+            </button>
+          </div>
+        </Modal>
+
+        <div className="flex gap-4 mt-3">
+          <button
+            type="submit"
+            className="bg-primary px-10 py-3 mt-4 text-white rounded-full"
+          >
+            Save
+          </button>
+
+          <button
+            type="button"
+            onClick={onCancel}
+            className="bg-gray-300 px-10 py-3 mt-4 text-gray-700 rounded-full"
+          >
+            Cancel
+          </button>
+        </div>
       </div>
     </form>
   );

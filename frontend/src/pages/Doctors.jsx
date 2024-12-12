@@ -185,7 +185,7 @@ const Doctors = () => {
                     {item.name}
                   </p>
                   <div className="flex justify-between items-center doctor-info">
-                    <p className="text-gray-600 text-sm specialty">
+                    <p className="text-gray-700 font-medium text-sm specialty">
                       {item.specialty}
                     </p>
                     <div className="flex items-center gap-1">

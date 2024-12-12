@@ -10,6 +10,7 @@ export const AppContextProvider = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem("token") || false);
   const [userData, setUserData] = useState(false);
   const [reviews, setReviews] = useState([]);
+  const [notifications, setNotifications] = useState([]);
   const getDoctorsData = async () => {
     try {
       const { data } = await axios.get(backendUrl + "/api/doctor/list");
@@ -40,16 +41,61 @@ export const AppContextProvider = ({ children }) => {
     }
   };
 
-  const slotDateFormat = (slotDate) => {
-    const dateArray = slotDate.split("_");
-    const day = dateArray[0].padStart(2, "0");
-    const month = dateArray[1].padStart(2, "0");
-    const year = dateArray[2];
-    return `${day}/${month}/${year}`;
-  };
-
   const addReview = (review) => {
     setReviews((prevReviews) => [...prevReviews, review]);
+  };
+
+  const createNotification = async (notification) => {
+    const { data } = await axios.post(backendUrl + "/api/notifications", {
+      headers: { token },
+      notification,
+    });
+    if (data.success) {
+      toast.success(data.message);
+    } else {
+      toast.error(data.message);
+    }
+  };
+
+  const patientNotifications = async () => {
+    try {
+      const { data } = await axios.get(backendUrl + "/api/user/notifications", {
+        headers: { token },
+      });
+      if (data.success) {
+        setNotifications(data.notifications);
+      } else {
+        toast.error(data.message);
+      }
+    } catch (error) {
+      console.log(error);
+      toast.error(error.message);
+    }
+  };
+
+  const markAllAsRead = async () => {
+    try {
+      const { data } = await axios.post(
+        `${backendUrl}/api/user/mark-all-as-read`,
+        {},
+        {
+          headers: { token },
+        }
+      );
+      if (data.success) {
+        setNotifications((prevNotifications) =>
+          prevNotifications.map((notification) => ({
+            ...notification,
+            isRead: true,
+          }))
+        );
+      } else {
+        toast.error(data.message);
+      }
+    } catch (error) {
+      console.log(error);
+      toast.error(error.message);
+    }
   };
 
   const value = {
@@ -63,8 +109,12 @@ export const AppContextProvider = ({ children }) => {
     setUserData,
     getDoctorsData,
     getUserProfile,
-    slotDateFormat,
     addReview,
+    createNotification,
+    notifications,
+    setNotifications,
+    patientNotifications,
+    markAllAsRead,
   };
 
   useEffect(() => {

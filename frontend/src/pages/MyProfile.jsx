@@ -2,6 +2,9 @@ import React from "react";
 import { useState, useContext } from "react";
 import { AppContext } from "../context/AppContext";
 import { assets } from "../assets/assets";
+import DatePicker from "react-datepicker";
+import moment from "moment";
+import "react-datepicker/dist/react-datepicker.css";
 import axios from "axios";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
@@ -12,6 +15,8 @@ const MyProfile = () => {
   const [isEdit, setIsEdit] = useState(false);
   const [image, setImage] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [phoneError, setPhoneError] = useState("");
+
   const navigate = useNavigate();
 
   const updateUserProfile = async () => {
@@ -39,8 +44,6 @@ const MyProfile = () => {
       formData.append("name", userData.name);
       formData.append("phone", userData.phone);
       formData.append("address", userData.address);
-      formData.append("gender", userData.gender);
-      formData.append("dob", userData.dob);
 
       image && formData.append("image", image);
       const { data } = await axios.post(
@@ -130,11 +133,22 @@ const MyProfile = () => {
                   className="w-full border border-gray-300 rounded-md p-1"
                   type="text"
                   value={userData.phone}
-                  onChange={(e) =>
-                    setUserData((prev) => ({ ...prev, phone: e.target.value }))
-                  }
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (!/^\d*$/.test(value)) {
+                      setPhoneError("Only numbers are allowed");
+                      return;
+                    }
+                    setPhoneError("");
+                    if (value.length <= 10) {
+                      setUserData((prev) => ({ ...prev, phone: value }));
+                    }
+                  }}
                   maxLength={10}
                 />
+                {phoneError && (
+                  <p className="text-red-500 text-sm">{phoneError}</p>
+                )}
                 <div className="text-right text-sm text-gray-500">
                   {10 - userData.phone.length} / 10 characters remaining
                 </div>
@@ -170,53 +184,26 @@ const MyProfile = () => {
           </div>
         </div>
 
-        <div>
-          <p className="text-neutral-500 underline mt-3">BASIC INFORMATION</p>
-          <div className="grid grid-cols-[1fr_3fr] gap-y-2.5 mt-3 text-neutral-700">
-            <p className="font-medium">Gender: </p>
-            {isEdit ? (
-              <select
-                className="max-w-20 bg-gray-100"
-                value={userData.gender}
-                onChange={(e) =>
-                  setUserData((prev) => ({ ...prev, gender: e.target.value }))
-                }
-              >
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-                <option value="Other">Other</option>
-              </select>
-            ) : (
-              <p className="text-gray-400">{userData.gender}</p>
-            )}
-            <p className="font-medium">Birthday:</p>
-            {isEdit ? (
-              <input
-                className="max-w-28 bg-gray-100"
-                type="date"
-                value={userData.dob || ""}
-                onChange={(e) =>
-                  setUserData((prev) => ({ ...prev, dob: e.target.value }))
-                }
-                max={new Date().toISOString().split("T")[0]}
-              />
-            ) : (
-              <p className="text-gray-400">
-                {userData.dob ? userData.dob : "Not Selected"}
-              </p>
-            )}
-          </div>
-        </div>
-
-        <div className="button-group">
+        <div className="button-group flex gap-4">
           {isEdit ? (
-            <button
-              className="border border-primary px-8 py-2 rounded-full hover:bg-primary hover:text-white transition-all"
-              onClick={updateUserProfile}
-              disabled={loading}
-            >
-              {loading ? "Saving..." : "Save Information"}
-            </button>
+            <>
+              <button
+                className="border border-primary px-8 py-2 rounded-full hover:bg-primary hover:text-white transition-all"
+                onClick={updateUserProfile}
+                disabled={loading}
+              >
+                {loading ? "Saving..." : "Save Information"}
+              </button>
+              <button
+                className="border border-gray-400 px-8 py-2 rounded-full hover:bg-gray-200 transition-all"
+                onClick={() => {
+                  setIsEdit(false);
+                  setImage(false);
+                }}
+              >
+                Cancel
+              </button>
+            </>
           ) : (
             <>
               <button

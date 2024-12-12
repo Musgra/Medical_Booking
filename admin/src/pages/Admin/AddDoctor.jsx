@@ -3,6 +3,8 @@ import { useContext, useState } from "react";
 import { AdminContext } from "../../context/AdminContext";
 import { toast } from "react-toastify";
 import axios from "axios";
+import { FaEye, FaEyeSlash } from "react-icons/fa";
+
 const AddDoctor = () => {
   const [docImg, setDocImg] = useState(false);
   const [name, setName] = useState("");
@@ -13,18 +15,26 @@ const AddDoctor = () => {
   const [about, setAbout] = useState("");
   const [specialty, setSpecialty] = useState("General physician");
   const [degree, setDegree] = useState("");
-  const [address1, setAddress1] = useState("");
-  const [address2, setAddress2] = useState("");
+  const [address, setAddress] = useState("");
+  const [phone, setPhone] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [phoneError, setPhoneError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const { backendUrl, aToken } = useContext(AdminContext);
-  console.log(backendUrl, aToken);
 
   const onSubmitHandler = async (e) => {
     e.preventDefault();
+    setLoading(true);
 
     try {
       if (!docImg) {
         return toast.error("Please upload doctor picture");
+      }
+
+      if (phone.length !== 10) {
+        setPhoneError("Phone number must be exactly 10 digits.");
+        return;
       }
 
       const formData = new FormData();
@@ -38,14 +48,8 @@ const AddDoctor = () => {
       formData.append("about", about);
       formData.append("specialty", specialty);
       formData.append("degree", degree);
-      formData.append(
-        "address",
-        JSON.stringify({ line1: address1, line2: address2 })
-      );
-
-      formData.forEach((value, key) => {
-        console.log(`${key}: ${value}`);
-      });
+      formData.append("address", address);
+      formData.append("phone", phone);
 
       const { data } = await axios.post(
         backendUrl + "/api/admin/add-doctor",
@@ -65,14 +69,15 @@ const AddDoctor = () => {
         setFees("");
         setAbout("");
         setDegree("");
-        setAddress1("");
-        setAddress2("");
+        setAddress("");
+        setPhone("");
       } else {
         toast.error(data.message);
       }
     } catch (error) {
       toast.error(error.message);
-      console.log(error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -81,7 +86,7 @@ const AddDoctor = () => {
       <p className="mb-3 text-lg font-medium">Add Doctor</p>
 
       <div className="bg-white px-8 py-8 border rounded w-full max-w-4xl max-h-[80vh] overflow-y-scroll">
-        <div className="flex items-center gap-4 mb-8 text-gray-500">
+        <div className="flex items-center gap-4 mb-8 text-gray-600">
           <label htmlFor="doc-img">
             <img
               className="w-16 bg-gray-100 rounded-full cursor-pointer"
@@ -129,15 +134,24 @@ const AddDoctor = () => {
 
             <div className="flex-1 flex flex-col gap-1">
               <p>Doctor Password</p>
-              <input
-                onChange={(e) => setPassword(e.target.value)}
-                value={password}
-                className="border rounded px-3 py-2"
-                type="password"
-                placeholder="Password"
-                required
-                autoComplete="new-password"
-              />
+              <div className="relative">
+                <input
+                  onChange={(e) => setPassword(e.target.value)}
+                  value={password}
+                  className="border rounded px-3 py-2 w-full"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Password"
+                  required
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? <FaEyeSlash /> : <FaEye />}
+                </button>
+              </div>
             </div>
 
             <div className="flex-1 flex flex-col gap-1">
@@ -209,22 +223,41 @@ const AddDoctor = () => {
             <div className="flex-1 flex flex-col gap-1">
               <p>Address</p>
               <input
-                onChange={(e) => setAddress1(e.target.value)}
-                value={address1}
+                onChange={(e) => setAddress(e.target.value)}
+                value={address}
                 className="border rounded px-3 py-2"
                 type="text"
-                placeholder="address 1"
+                placeholder="address"
                 required
-              />
-              <input
-                onChange={(e) => setAddress2(e.target.value)}
-                value={address2}
-                className="border rounded px-3 py-2"
-                type="text"
-                placeholder="address 2"
               />
             </div>
           </div>
+        </div>
+
+        <div className="flex-1 flex flex-col gap-1">
+          <p>Doctor Phone</p>
+          <input
+            onChange={(e) => {
+              const value = e.target.value;
+              if (!/^\d*$/.test(value)) {
+                setPhoneError("Only numbers are allowed");
+                return;
+              }
+              if (value.length > 10) {
+                setPhoneError("Phone number must be exactly 10 digits."); // Quá 10 ký tự
+                return;
+              }
+              setPhoneError("");
+              setPhone(value);
+            }}
+            value={phone}
+            className="border rounded px-3 py-2"
+            type="text"
+            placeholder="Phone"
+            required
+            maxLength={10}
+          />
+          {phoneError && <p className="text-red-500 text-sm">{phoneError}</p>}
         </div>
 
         <div>
@@ -242,8 +275,9 @@ const AddDoctor = () => {
         <button
           type="submit"
           className="bg-primary px-10 py-3 mt-4 text-white rounded-full"
+          disabled={loading}
         >
-          Add doctor
+          {loading ? "Loading..." : "Add doctor"}
         </button>
       </div>
     </form>

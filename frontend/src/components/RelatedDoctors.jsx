@@ -51,7 +51,9 @@ const RelatedDoctors = ({ doctorId, specialty }) => {
               </div>
               <p className="text-gray-900 text-lg font-medium">{item.name}</p>
               <div className="flex justify-between items-center">
-                <p className="text-gray-600 text-sm">{item.specialty}</p>
+                <p className="text-gray-700 font-medium text-sm">
+                  {item.specialty}
+                </p>
                 <div className="flex items-center gap-1">
                   <p className="flex items-center gap-1">
                     <img

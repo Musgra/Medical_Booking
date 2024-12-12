@@ -12,6 +12,7 @@ import AddDoctor from "./pages/Admin/AddDoctor";
 import DoctorsList from "./pages/Admin/DoctorsList";
 import PatientsList from "./pages/Admin/PatientsList";
 import GetDoctorProfile from "./pages/Admin/GetDoctorProfile";
+import PatientDetailsAdmin from "./pages/Admin/PatientDetails";
 
 import { DoctorContext } from "./context/DoctorContext";
 import DoctorDashboard from "./pages/Doctor/DoctorDashboard";
@@ -43,6 +44,10 @@ const App = () => {
               <Route path="/doctor-list" element={<DoctorsList />} />
               <Route path="/patients-list" element={<PatientsList />} />
               <Route path="/doctor-list/:id" element={<GetDoctorProfile />} />
+              <Route
+                path="/patient-details/:id"
+                element={<PatientDetailsAdmin />}
+              />
               <Route path="/admin-reviews" element={<AdminReviewList />} />
             </>
           )}
@@ -67,7 +72,10 @@ const App = () => {
                 }
               />
               <Route path="/doctor-patients" element={<DoctorPatientList />} />
-              <Route path="/doctor-patient/:userId" element={<PatientDetails />} />
+              <Route
+                path="/doctor-patient/:userId"
+                element={<PatientDetails />}
+              />
             </>
           )}
           {/* Catch-all route for logged-in users */}
